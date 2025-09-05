@@ -4,34 +4,22 @@ Model training and evaluation for the Autonomous ML Agent.
 
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import optuna
 import pandas as pd
 from optuna import Trial
-from sklearn.metrics import (
-    accuracy_score,
-    balanced_accuracy_score,
-    f1_score,
-    mean_absolute_error,
-    mean_squared_error,
-    precision_score,
-    r2_score,
-    recall_score,
-    roc_auc_score,
-)
 from sklearn.model_selection import (
     KFold,
     StratifiedKFold,
     cross_val_score,
-    train_test_split,
 )
 
 from ..logging import get_logger
 from ..types import BudgetClock, MetricType, ModelType, TaskType, TrialResult
 from ..utils import calculate_metrics, select_metric, set_random_seed
-from .registries import get_model_factory, validate_model_params
+from .registries import get_model_factory
 from .spaces import suggest_parameters, validate_parameters
 
 logger = get_logger()

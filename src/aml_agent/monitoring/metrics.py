@@ -4,12 +4,182 @@ Monitoring and metrics collection for the Autonomous ML Agent.
 
 import time
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from ..logging import get_logger
 
 logger = get_logger()
+
+
+class HealthChecker:
+    """Health check system for monitoring system status."""
+
+    def __init__(self):
+        self.start_time = time.time()
+
+    def run_health_checks(self) -> Dict[str, Any]:
+        """Run comprehensive health checks."""
+        checks = {
+            "system": self._check_system_health(),
+            "memory": self._check_memory_health(),
+            "disk": self._check_disk_health(),
+            "dependencies": self._check_dependencies_health(),
+        }
+
+        overall_status = (
+            "healthy"
+            if all(check["status"] == "healthy" for check in checks.values())
+            else "unhealthy"
+        )
+
+        return {
+            "status": overall_status,
+            "timestamp": datetime.now().isoformat(),
+            "checks": checks,
+        }
+
+    def _check_system_health(self) -> Dict[str, Any]:
+        """Check basic system health."""
+        try:
+            import psutil
+
+            cpu_percent = psutil.cpu_percent(interval=1)
+            memory = psutil.virtual_memory()
+
+            if cpu_percent > 90:
+                return {
+                    "status": "unhealthy",
+                    "message": f"High CPU usage: {cpu_percent}%",
+                }
+            elif memory.percent > 90:
+                return {
+                    "status": "unhealthy",
+                    "message": f"High memory usage: {memory.percent}%",
+                }
+            else:
+                return {
+                    "status": "healthy",
+                    "message": f"CPU: {cpu_percent}%, Memory: {memory.percent}%",
+                }
+        except ImportError:
+            return {"status": "warning", "message": "psutil not available"}
+        except Exception as e:
+            return {"status": "unhealthy", "message": f"System check failed: {e}"}
+
+    def _check_memory_health(self) -> Dict[str, Any]:
+        """Check memory health."""
+        try:
+            import psutil
+
+            memory = psutil.virtual_memory()
+            if memory.percent > 95:
+                return {"status": "unhealthy", "message": "Critical memory usage"}
+            elif memory.percent > 80:
+                return {"status": "warning", "message": "High memory usage"}
+            else:
+                return {
+                    "status": "healthy",
+                    "message": f"Memory usage: {memory.percent}%",
+                }
+        except ImportError:
+            return {"status": "warning", "message": "psutil not available"}
+        except Exception as e:
+            return {"status": "unhealthy", "message": f"Memory check failed: {e}"}
+
+    def _check_disk_health(self) -> Dict[str, Any]:
+        """Check disk health."""
+        try:
+            import psutil
+
+            disk = psutil.disk_usage("/")
+            free_percent = (disk.free / disk.total) * 100
+
+            if free_percent < 5:
+                return {"status": "unhealthy", "message": "Critical disk space"}
+            elif free_percent < 20:
+                return {"status": "warning", "message": "Low disk space"}
+            else:
+                return {
+                    "status": "healthy",
+                    "message": f"Disk free: {free_percent:.1f}%",
+                }
+        except ImportError:
+            return {"status": "warning", "message": "psutil not available"}
+        except Exception as e:
+            return {"status": "unhealthy", "message": f"Disk check failed: {e}"}
+
+    def _check_dependencies_health(self) -> Dict[str, Any]:
+        """Check critical dependencies."""
+        try:
+            import sklearn
+            import pandas
+            import numpy
+
+            return {
+                "status": "healthy",
+                "message": f"Core dependencies available: sklearn {sklearn.__version__}, pandas {pandas.__version__}, numpy {numpy.__version__}",
+            }
+        except ImportError as e:
+            return {"status": "unhealthy", "message": f"Missing dependency: {e}"}
+        except Exception as e:
+            return {"status": "unhealthy", "message": f"Dependency check failed: {e}"}
+
+
+class PerformanceMonitor:
+    """Performance monitoring and metrics collection."""
+
+    def __init__(self):
+        self.start_time = time.time()
+        self.metrics = defaultdict(list)
+        self.counters = defaultdict(int)
+        self.timers = defaultdict(list)
+
+    def get_uptime(self) -> float:
+        """Get system uptime in seconds."""
+        return time.time() - self.start_time
+
+    def get_performance_summary(self) -> Dict[str, Any]:
+        """Get comprehensive performance summary."""
+        summary = {
+            "uptime": self.get_uptime(),
+            "metrics": {},
+        }
+
+        # Process counters
+        for name, value in self.counters.items():
+            summary["metrics"][name] = {"type": "counter", "value": value}
+
+        # Process timers
+        for name, times in self.timers.items():
+            if times:
+                summary["metrics"][name] = {
+                    "type": "timer",
+                    "mean": sum(times) / len(times),
+                    "min": min(times),
+                    "max": max(times),
+                    "count": len(times),
+                }
+
+        return summary
+
+    def increment_counter(self, name: str, value: int = 1):
+        """Increment a counter metric."""
+        self.counters[name] += value
+
+    def record_timer(self, name: str, duration: float):
+        """Record a timer metric."""
+        self.timers[name].append(duration)
+
+    def record_metric(self, name: str, value: float):
+        """Record a general metric."""
+        self.metrics[name].append(value)
+
+    def reset_metrics(self):
+        """Reset all metrics."""
+        self.metrics.clear()
+        self.counters.clear()
+        self.timers.clear()
 
 
 class MetricsCollector:
@@ -112,124 +282,203 @@ class MetricsCollector:
         self.start_time = time.time()
         logger.info("Metrics reset")
 
+    def get_metric_trends(self, metric_name: str, hours: int = 24) -> Dict[str, Any]:
+        """Analyze trends for a specific metric."""
+        if metric_name not in self.metrics:
+            return {"trend": "no_data", "change": 0, "values": []}
 
-class PerformanceMonitor:
-    """Monitor system performance."""
+        cutoff_time = time.time() - (hours * 3600)
+        recent_values = [
+            m for m in self.metrics[metric_name] if m["timestamp"] > cutoff_time
+        ]
 
-    def __init__(self):
-        self.metrics = MetricsCollector()
-        self.active_requests = 0
-        self.request_times = []
+        if len(recent_values) < 2:
+            return {"trend": "insufficient_data", "change": 0, "values": []}
 
-    def start_request(self) -> str:
-        """Start monitoring a request."""
-        self.active_requests += 1
-        request_id = f"req_{int(time.time() * 1000)}"
-        self.metrics.increment_counter("requests_started")
-        return request_id
+        values = [m["value"] for m in recent_values]
 
-    def end_request(self, request_id: str, success: bool = True) -> None:
-        """End monitoring a request."""
-        self.active_requests = max(0, self.active_requests - 1)
-
-        if success:
-            self.metrics.increment_counter("requests_completed")
+        # Calculate trend
+        if len(values) >= 10:
+            recent_avg = sum(values[-5:]) / 5
+            older_avg = sum(values[:5]) / 5
         else:
-            self.metrics.increment_counter("requests_failed")
+            recent_avg = values[-1]
+            older_avg = values[0]
 
-    def record_prediction_time(self, duration: float) -> None:
-        """Record prediction time."""
-        self.metrics.record_timer("prediction_time", duration)
+        change = ((recent_avg - older_avg) / older_avg * 100) if older_avg > 0 else 0
 
-    def record_training_time(self, duration: float) -> None:
-        """Record training time."""
-        self.metrics.record_timer("training_time", duration)
+        if change > 5:
+            trend = "increasing"
+        elif change < -5:
+            trend = "decreasing"
+        else:
+            trend = "stable"
 
-    def record_memory_usage(self, usage_mb: float) -> None:
-        """Record memory usage."""
-        self.metrics.record_gauge("memory_usage_mb", usage_mb)
-
-    def record_model_accuracy(self, accuracy: float) -> None:
-        """Record model accuracy."""
-        self.metrics.record_gauge("model_accuracy", accuracy)
-
-    def get_performance_summary(self) -> Dict[str, Any]:
-        """Get performance summary."""
         return {
-            "uptime_seconds": self.metrics.get_uptime(),
-            "active_requests": self.active_requests,
-            "metrics": self.metrics.get_all_metrics(),
+            "trend": trend,
+            "change": change,
+            "values": values,
+            "current": values[-1] if values else 0,
+            "average": sum(values) / len(values),
         }
 
+    def export_metrics(self, format: str = "json") -> str:
+        """Export metrics in specified format."""
+        metrics = self.get_all_metrics()
 
-class HealthChecker:
-    """Check system health."""
+        if format == "json":
+            import json
 
-    def __init__(self, performance_monitor: PerformanceMonitor):
-        self.performance_monitor = performance_monitor
-        self.health_checks = {}
+            return json.dumps(metrics, indent=2, default=str)
+        elif format == "csv":
+            import csv
+            import io
 
-    def register_health_check(self, name: str, check_func) -> None:
-        """Register a health check function."""
-        self.health_checks[name] = check_func
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(
+                ["metric_name", "type", "value", "count", "min", "max", "mean"]
+            )
 
-    def run_health_checks(self) -> Dict[str, Any]:
-        """Run all health checks."""
-        results = {
-            "status": "healthy",
-            "checks": {},
-            "timestamp": datetime.now().isoformat(),
-        }
+            for name, data in metrics.items():
+                if isinstance(data, dict) and "type" in data:
+                    writer.writerow(
+                        [
+                            name,
+                            data.get("type", ""),
+                            data.get("value", data.get("latest", "")),
+                            data.get("count", ""),
+                            data.get("min", ""),
+                            data.get("max", ""),
+                            data.get("mean", ""),
+                        ]
+                    )
 
-        overall_healthy = True
+            return output.getvalue()
+        else:
+            raise ValueError(f"Unsupported format: {format}")
 
-        for name, check_func in self.health_checks.items():
-            try:
-                check_result = check_func()
-                results["checks"][name] = {
-                    "status": "healthy" if check_result else "unhealthy",
-                    "result": check_result,
+    def get_health_score(self) -> float:
+        """Calculate overall system health score (0-100)."""
+        try:
+            health_checks = health_checker.run_health_checks()
+            performance = performance_monitor.get_performance_summary()
+
+            # Calculate health score based on various factors
+            score = 100.0
+
+            # CPU usage penalty
+            cpu_usage = performance.get("cpu_usage", 0)
+            if cpu_usage > 90:
+                score -= 30
+            elif cpu_usage > 80:
+                score -= 20
+            elif cpu_usage > 70:
+                score -= 10
+
+            # Memory usage penalty
+            memory_usage = performance.get("memory_usage", 0)
+            if memory_usage > 90:
+                score -= 30
+            elif memory_usage > 80:
+                score -= 20
+            elif memory_usage > 70:
+                score -= 10
+
+            # Disk usage penalty
+            disk_usage = performance.get("disk_usage", 0)
+            if disk_usage > 90:
+                score -= 20
+            elif disk_usage > 80:
+                score -= 10
+
+            # Health check failures
+            failed_checks = sum(
+                1 for check, status in health_checks.items() if not status
+            )
+            score -= failed_checks * 10
+
+            return max(0, min(100, score))
+
+        except Exception as e:
+            logger.error(f"Error calculating health score: {e}")
+            return 50.0  # Default neutral score
+
+    def get_performance_alerts(self) -> List[Dict[str, Any]]:
+        """Get performance alerts based on current metrics."""
+        alerts = []
+        performance = performance_monitor.get_performance_summary()
+
+        # CPU alert
+        cpu_usage = performance.get("cpu_usage", 0)
+        if cpu_usage > 90:
+            alerts.append(
+                {
+                    "type": "critical",
+                    "metric": "cpu_usage",
+                    "value": cpu_usage,
+                    "message": f"CPU usage is critically high: {cpu_usage:.1f}%",
                 }
-                if not check_result:
-                    overall_healthy = False
-            except Exception as e:
-                results["checks"][name] = {"status": "error", "error": str(e)}
-                overall_healthy = False
+            )
+        elif cpu_usage > 80:
+            alerts.append(
+                {
+                    "type": "warning",
+                    "metric": "cpu_usage",
+                    "value": cpu_usage,
+                    "message": f"CPU usage is high: {cpu_usage:.1f}%",
+                }
+            )
 
-        results["status"] = "healthy" if overall_healthy else "unhealthy"
-        return results
+        # Memory alert
+        memory_usage = performance.get("memory_usage", 0)
+        if memory_usage > 90:
+            alerts.append(
+                {
+                    "type": "critical",
+                    "metric": "memory_usage",
+                    "value": memory_usage,
+                    "message": f"Memory usage is critically high: {memory_usage:.1f}%",
+                }
+            )
+        elif memory_usage > 80:
+            alerts.append(
+                {
+                    "type": "warning",
+                    "metric": "memory_usage",
+                    "value": memory_usage,
+                    "message": f"Memory usage is high: {memory_usage:.1f}%",
+                }
+            )
 
-    def check_memory_usage(self) -> bool:
-        """Check if memory usage is reasonable."""
-        try:
-            import psutil
+        # Disk alert
+        disk_usage = performance.get("disk_usage", 0)
+        if disk_usage > 90:
+            alerts.append(
+                {
+                    "type": "critical",
+                    "metric": "disk_usage",
+                    "value": disk_usage,
+                    "message": f"Disk usage is critically high: {disk_usage:.1f}%",
+                }
+            )
+        elif disk_usage > 80:
+            alerts.append(
+                {
+                    "type": "warning",
+                    "metric": "disk_usage",
+                    "value": disk_usage,
+                    "message": f"Disk usage is high: {disk_usage:.1f}%",
+                }
+            )
 
-            memory_percent = psutil.virtual_memory().percent
-            return memory_percent < 90  # Consider unhealthy if > 90%
-        except ImportError:
-            return True  # Can't check without psutil
-
-    def check_disk_space(self) -> bool:
-        """Check if disk space is sufficient."""
-        try:
-            import shutil
-
-            free_space = shutil.disk_usage(".").free
-            return free_space > 1024 * 1024 * 1024  # At least 1GB free
-        except:
-            return True
-
-    def check_model_loaded(self) -> bool:
-        """Check if model is loaded and ready."""
-        # This would need to be connected to the actual model service
-        return True
+        return alerts
 
 
 # Global instances
 performance_monitor = PerformanceMonitor()
-health_checker = HealthChecker(performance_monitor)
+health_checker = HealthChecker()
 
-# Register default health checks
-health_checker.register_health_check("memory", health_checker.check_memory_usage)
-health_checker.register_health_check("disk_space", health_checker.check_disk_space)
-health_checker.register_health_check("model_loaded", health_checker.check_model_loaded)
+# Additional global instances
+metrics_collector = MetricsCollector()
+

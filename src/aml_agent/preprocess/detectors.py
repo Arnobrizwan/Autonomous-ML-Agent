@@ -2,15 +2,14 @@
 Data type and quality detectors for preprocessing.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import StandardScaler
 
 from ..logging import get_logger
-from ..types import ImputationMethod, OutlierMethod
+from ..types import OutlierMethod
 
 logger = get_logger()
 

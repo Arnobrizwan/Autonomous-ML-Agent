@@ -2,10 +2,9 @@
 Authentication and authorization for the Autonomous ML Agent.
 """
 
-import hashlib
 import secrets
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Set
 
 from ..logging import get_logger

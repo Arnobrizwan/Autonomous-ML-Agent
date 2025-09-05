@@ -10,7 +10,6 @@ import pandas as pd
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 from ..logging import get_logger
 from ..types import LeaderboardEntry, MetricType, ModelType, TrialResult

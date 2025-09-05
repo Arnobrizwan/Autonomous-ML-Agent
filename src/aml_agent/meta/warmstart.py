@@ -2,25 +2,32 @@
 Warm-start capabilities for hyperparameter optimization.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import optuna
-from optuna import Trial
 
 from ..logging import get_logger
-from ..models.spaces import suggest_parameters, validate_parameters
-from ..types import DatasetProfile, ModelType, TrialResult
+from ..types import DatasetProfile, ModelType
 from .store import MetaStore
+
+# LLM integration for meta-learning
+try:
+    from ..agent.planner import LLMPlanner
+
+    LLM_AVAILABLE = True
+except ImportError:
+    LLM_AVAILABLE = False
 
 logger = get_logger()
 
 
 class WarmStartManager:
-    """Manage warm-start for hyperparameter optimization."""
+    """Manage warm-start for hyperparameter optimization with LLM guidance."""
 
-    def __init__(self, meta_store: MetaStore):
+    def __init__(self, meta_store: MetaStore, llm_planner: Optional[LLMPlanner] = None):
         self.meta_store = meta_store
+        self.llm_planner = llm_planner
 
     def warm_start_study(
         self,
@@ -295,3 +302,27 @@ def get_warm_start_recommendations(
             recommendations[model_type.value] = suggestions
 
     return recommendations
+
+
+def get_llm_guided_suggestions(
+    dataset_profile: DatasetProfile,
+    model_type: ModelType,
+    task_type: str,
+    meta_store: MetaStore,
+    llm_planner: Optional[LLMPlanner] = None,
+) -> Dict[str, Any]:
+    """Get LLM-guided hyperparameter suggestions."""
+    manager = WarmStartManager(meta_store, llm_planner)
+    return manager.get_llm_guided_suggestions(dataset_profile, model_type, task_type)
+
+
+def predict_model_performance(
+    dataset_profile: DatasetProfile,
+    model_type: ModelType,
+    hyperparameters: Dict[str, Any],
+    meta_store: MetaStore,
+    llm_planner: Optional[LLMPlanner] = None,
+) -> float:
+    """Predict model performance using meta-learning."""
+    manager = WarmStartManager(meta_store, llm_planner)
+    return manager.predict_performance(dataset_profile, model_type, hyperparameters)

@@ -2,14 +2,14 @@
 Hyperparameter search space definitions for the Autonomous ML Agent.
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import optuna
 from optuna.pruners import MedianPruner
 from optuna.samplers import RandomSampler, TPESampler
 
 from ..logging import get_logger
-from ..types import ModelType, SearchStrategy, TaskType
+from ..types import ModelType, SearchStrategy
 
 logger = get_logger()
 

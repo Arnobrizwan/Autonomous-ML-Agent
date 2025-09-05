@@ -44,9 +44,23 @@ class PreprocessingPipeline:
         # Advanced feature engineering components
         self.advanced_pipeline = None
         if self.use_advanced_features:
-            # Advanced features temporarily disabled due to feature name mismatch issues
-            # TODO: Fix feature name handling in advanced transformers
-            self.advanced_pipeline = None
+            try:
+                from .advanced_transformers import (
+                    AdvancedOutlierDetector,
+                    FeatureSelector,
+                    PolynomialFeatureGenerator,
+                    TextFeatureExtractor,
+                )
+
+                self.advanced_transformers = {
+                    "outlier_detector": AdvancedOutlierDetector(),
+                    "feature_selector": FeatureSelector(),
+                    "polynomial_generator": PolynomialFeatureGenerator(),
+                    "text_extractor": TextFeatureExtractor(),
+                }
+            except ImportError as e:
+                logger.warning(f"Advanced transformers not available: {e}")
+                self.advanced_transformers = None
 
     def fit(
         self, X: pd.DataFrame, y: Optional[pd.Series] = None
@@ -151,10 +165,25 @@ class PreprocessingPipeline:
         result = result.fillna(0)
 
         # Apply advanced feature engineering if enabled
-        if self.advanced_pipeline is not None:
+        if self.advanced_transformers is not None:
             logger.info("Applying advanced feature engineering to transformed data...")
-            result = self.advanced_pipeline.transform(result)
-            logger.info(f"Advanced features applied. Final shape: {result.shape}")
+            try:
+                # Apply polynomial features
+                if "polynomial_generator" in self.advanced_transformers:
+                    result = self.advanced_transformers[
+                        "polynomial_generator"
+                    ].fit_transform(result)
+
+                # Apply feature selection
+                if "feature_selector" in self.advanced_transformers:
+                    result = self.advanced_transformers[
+                        "feature_selector"
+                    ].fit_transform(result)
+
+                logger.info(f"Advanced features applied. Final shape: {result.shape}")
+            except Exception as e:
+                logger.warning(f"Advanced feature engineering failed: {e}")
+                logger.info("Continuing with basic preprocessing...")
 
         logger.info(f"Transformed data shape: {result.shape}")
         return result

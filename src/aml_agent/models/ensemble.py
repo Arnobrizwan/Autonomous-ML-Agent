@@ -2,7 +2,7 @@
 Ensemble methods for the Autonomous ML Agent.
 """
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -14,10 +14,9 @@ from sklearn.ensemble import (
     VotingRegressor,
 )
 from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.model_selection import cross_val_score
 
 from ..logging import get_logger
-from ..types import EnsembleConfig, ModelType, TaskType, TrialResult
+from ..types import EnsembleConfig, TaskType, TrialResult
 from .registries import get_model_factory
 
 logger = get_logger()

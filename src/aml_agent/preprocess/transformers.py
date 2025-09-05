@@ -2,7 +2,7 @@
 Data transformers for preprocessing pipeline.
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -19,7 +19,7 @@ from sklearn.preprocessing import (
 )
 
 from ..logging import get_logger
-from ..types import EncodingMethod, ImputationMethod, OutlierMethod
+from ..types import EncodingMethod, ImputationMethod
 
 logger = get_logger()
 

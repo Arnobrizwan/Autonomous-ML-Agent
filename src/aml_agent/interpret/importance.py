@@ -2,12 +2,20 @@
 Feature importance analysis for model interpretability.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.inspection import permutation_importance
+
+# SHAP integration
+try:
+    import shap
+
+    SHAP_AVAILABLE = True
+except ImportError:
+    SHAP_AVAILABLE = False
 
 from ..logging import get_logger
 
@@ -42,18 +50,33 @@ class FeatureImportanceAnalyzer:
             return self._get_builtin_importance(model, X)
         elif method == "permutation":
             return self._get_permutation_importance(model, X, y)
+        elif method == "shap":
+            return self._get_shap_importance(model, X, y)
         else:
             raise ValueError(f"Unknown importance method: {method}")
 
     def _select_best_method(self, model: BaseEstimator) -> str:
         """Select best importance method for model type."""
+        # Prefer SHAP if available and model supports it
+        if SHAP_AVAILABLE and self._supports_shap(model):
+            return "shap"
         # Check if model has built-in feature importance
-        if hasattr(model, "feature_importances_"):
+        elif hasattr(model, "feature_importances_"):
             return "builtin"
         elif hasattr(model, "coef_"):
             return "builtin"
         else:
             return "permutation"
+
+    def _supports_shap(self, model: BaseEstimator) -> bool:
+        """Check if model supports SHAP explanation."""
+        try:
+            # Test if SHAP can create an explainer for this model
+            if hasattr(model, "predict_proba") or hasattr(model, "predict"):
+                return True
+            return False
+        except Exception:
+            return False
 
     def _get_builtin_importance(
         self, model: BaseEstimator, X: pd.DataFrame
@@ -94,6 +117,107 @@ class FeatureImportanceAnalyzer:
             }
 
         return importance_scores
+
+    def _get_shap_importance(
+        self,
+        model: BaseEstimator,
+        X: pd.DataFrame,
+        y: pd.Series,
+        sample_size: int = 100,
+    ) -> Dict[str, float]:
+        """Get SHAP-based feature importance."""
+        if not SHAP_AVAILABLE:
+            logger.warning("SHAP not available. Install with: pip install shap")
+            return {}
+
+        try:
+            # Sample data for SHAP calculation (for performance)
+            if len(X) > sample_size:
+                X_sample = X.sample(n=sample_size, random_state=42)
+            else:
+                X_sample = X
+
+            # Create SHAP explainer
+            try:
+                # Try TreeExplainer first (for tree-based models)
+                explainer = shap.TreeExplainer(model)
+                shap_values = explainer.shap_values(X_sample)
+            except Exception:
+                # Fall back to other explainers
+                try:
+                    explainer = shap.Explainer(model)
+                    shap_values = explainer(X_sample)
+                    shap_values = shap_values.values
+                except Exception:
+                    # Last resort: use LinearExplainer
+                    explainer = shap.LinearExplainer(model, X_sample)
+                    shap_values = explainer.shap_values(X_sample)
+
+            # Handle multi-class case
+            if isinstance(shap_values, list):
+                shap_values = np.mean(shap_values, axis=0)
+
+            # Calculate mean absolute SHAP values
+            if shap_values.ndim > 1:
+                mean_shap_values = np.mean(np.abs(shap_values), axis=0)
+            else:
+                mean_shap_values = np.abs(shap_values)
+
+            # Create importance dictionary
+            importance_dict = {}
+            for i, feature_name in enumerate(X.columns):
+                if i < len(mean_shap_values):
+                    importance_dict[feature_name] = float(mean_shap_values[i])
+                else:
+                    importance_dict[feature_name] = 0.0
+
+            # Normalize importance scores
+            total_importance = sum(importance_dict.values())
+            if total_importance > 0:
+                importance_dict = {
+                    feature: score / total_importance
+                    for feature, score in importance_dict.items()
+                }
+
+            return importance_dict
+
+        except Exception as e:
+            logger.error(f"Error calculating SHAP importance: {e}")
+            # Try alternative SHAP approaches
+            try:
+                # Use KernelExplainer as fallback
+                explainer = shap.KernelExplainer(model.predict, X_sample.iloc[:10])
+                shap_values = explainer.shap_values(X_sample.iloc[:5])
+
+                if isinstance(shap_values, list):
+                    shap_values = np.mean(shap_values, axis=0)
+
+                if shap_values.ndim > 1:
+                    mean_shap_values = np.mean(np.abs(shap_values), axis=0)
+                else:
+                    mean_shap_values = np.abs(shap_values)
+
+                # Create importance dictionary
+                importance_dict = {}
+                for i, feature_name in enumerate(X.columns):
+                    if i < len(mean_shap_values):
+                        importance_dict[feature_name] = float(mean_shap_values[i])
+                    else:
+                        importance_dict[feature_name] = 0.0
+
+                # Normalize
+                total_importance = sum(importance_dict.values())
+                if total_importance > 0:
+                    importance_dict = {
+                        feature: score / total_importance
+                        for feature, score in importance_dict.items()
+                    }
+
+                return importance_dict
+
+            except Exception as e2:
+                logger.error(f"All SHAP methods failed: {e2}")
+                raise RuntimeError("SHAP importance calculation failed completely")
 
     def _get_permutation_importance(
         self, model: BaseEstimator, X: pd.DataFrame, y: pd.Series, n_repeats: int = 5

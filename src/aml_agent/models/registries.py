@@ -2,9 +2,8 @@
 Model registry and factory for the Autonomous ML Agent.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import (
     GradientBoostingClassifier,

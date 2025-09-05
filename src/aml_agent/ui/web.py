@@ -12,7 +12,7 @@ import streamlit as st
 from ..agent.loop import run_autonomous_ml
 from ..config import create_default_config
 from ..logging import get_logger
-from ..monitoring import health_checker, performance_monitor
+from ..monitoring.metrics import HealthChecker, PerformanceMonitor
 from ..utils import create_sample_data, load_data
 
 logger = get_logger()

@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import joblib
-import numpy as np
 import pandas as pd
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
