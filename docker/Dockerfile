@@ -1,64 +1,75 @@
-# Optimized Dockerfile for Autonomous ML Agent
-# Single-stage build for maximum reliability and speed
+# Ultra-Optimized Multi-Stage Dockerfile for Autonomous ML Agent
+# Stage 1: Build dependencies and install packages
+FROM python:3.11-slim AS builder
 
-FROM python:3.11-slim
-
-# Set labels for metadata
-LABEL maintainer="Autonomous ML Agent Team" \
-      version="1.0.0" \
-      description="Autonomous ML Agent - Optimized Production Image" \
-      org.opencontainers.image.source="https://github.com/Arnobrizwan/Autonomous-ML-Agent"
-
-# Set environment variables
+# Set environment variables for build stage
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_DEFAULT_TIMEOUT=100 \
-    PIP_RETRIES=3
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies for building packages
-RUN apt-get update && apt-get install -y \
+# Install minimal build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     gcc \
     g++ \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install only essential Python dependencies
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir \
+    numpy==1.24.4 \
+    pandas==2.0.3 \
+    scikit-learn==1.3.2 \
+    fastapi==0.104.1 \
+    uvicorn[standard]==0.24.0 \
+    pydantic==2.5.0 \
+    typer==0.9.0 \
+    rich==13.7.0 \
+    pyyaml==6.0.1 \
+    joblib==1.3.2
+
+# Install application
+COPY pyproject.toml ./
+COPY src/ ./src/
+RUN pip install --no-cache-dir -e .
+
+# Stage 2: Runtime (ultra-slim)
+FROM python:3.11-slim
+
+# Set environment variables for runtime
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    PATH="/opt/venv/bin:$PATH"
+
+# Copy only the virtual environment (no build tools)
+COPY --from=builder /opt/venv /opt/venv
+
+# Copy application code and install package
+COPY src/ /app/src/
+COPY configs/ /app/configs/
+COPY pyproject.toml /app/
 WORKDIR /app
 
-# Copy requirements first for better caching
-COPY requirements.txt .
-
-# Install Python dependencies with retry and timeout handling
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir --timeout=100 --retries=3 -r requirements.txt
-
-# Copy application code
-COPY src/ ./src/
-COPY configs/ ./configs/
-COPY pyproject.toml .
-
-# Install the package
+# Install the package in the runtime environment
 RUN pip install --no-cache-dir -e .
 
 # Create necessary directories
 RUN mkdir -p /app/data /app/artifacts
 
 # Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser && \
-    chown -R appuser:appuser /app
-
-# Switch to non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser \
+    && chown -R appuser:appuser /app
 USER appuser
-
-# Add health check (using Python instead of curl to avoid system dependencies)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/healthz')" || exit 1
 
 # Expose port
 EXPOSE 8000
 
 # Default command
-CMD ["python", "-m", "uvicorn", "src.aml_agent.service.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "aml_agent.service.app:app", "--host", "0.0.0.0", "--port", "8000"]
