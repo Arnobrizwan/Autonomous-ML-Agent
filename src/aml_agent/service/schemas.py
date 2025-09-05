@@ -3,7 +3,7 @@ Pydantic schemas for the FastAPI service.
 """
 
 from typing import Dict, List, Optional, Union, Any
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 import pandas as pd
 
 
@@ -12,8 +12,8 @@ class PredictionRequest(BaseModel):
     features: Dict[str, Union[str, int, float]] = Field(..., description="Feature values")
     run_id: str = Field(..., description="Run ID of the trained model")
     
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "features": {
                     "feature_0": 1.5,
@@ -23,6 +23,7 @@ class PredictionRequest(BaseModel):
                 "run_id": "run_20241201_143022_abc123"
             }
         }
+    }
 
 
 class PredictionResponse(BaseModel):

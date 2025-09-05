@@ -6,7 +6,7 @@ import os
 import yaml
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings
 
 from .types import (
@@ -108,16 +108,19 @@ class APISettings(BaseModel):
 
 class EnvironmentSettings(BaseSettings):
     """Environment variable settings."""
-    openai_api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
-    gemini_api_key: Optional[str] = Field(default=None, env="GEMINI_API_KEY")
-    mlflow_tracking_uri: Optional[str] = Field(default=None, env="MLFLOW_TRACKING_URI")
-    mlflow_experiment_name: str = Field(default="autonomous-ml-agent", env="MLFLOW_EXPERIMENT_NAME")
-    log_level: str = Field(default="INFO", env="LOG_LEVEL")
-    default_data_path: str = Field(default="data/sample.csv", env="DEFAULT_DATA_PATH")
+    openai_api_key: Optional[str] = Field(default=None)
+    gemini_api_key: Optional[str] = Field(default=None)
+    mlflow_tracking_uri: Optional[str] = Field(default=None)
+    mlflow_experiment_name: str = Field(default="autonomous-ml-agent")
+    log_level: str = Field(default="INFO")
+    default_data_path: str = Field(default="data/sample.csv")
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "env_prefix": "",
+        "case_sensitive": False
+    }
 
 
 class Config(BaseModel):
@@ -144,42 +147,48 @@ class Config(BaseModel):
     export: ExportSettings = Field(default_factory=ExportSettings)
     api: APISettings = Field(default_factory=APISettings)
 
-    @validator("data_path")
+    @field_validator("data_path")
+    @classmethod
     def validate_data_path(cls, v):
         """Validate data path exists."""
         if not Path(v).exists():
             raise ValueError(f"Data path {v} does not exist")
         return v
 
-    @validator("time_budget_seconds")
+    @field_validator("time_budget_seconds")
+    @classmethod
     def validate_time_budget(cls, v):
         """Validate time budget is positive."""
         if v <= 0:
             raise ValueError("Time budget must be positive")
         return v
 
-    @validator("max_trials")
+    @field_validator("max_trials")
+    @classmethod
     def validate_max_trials(cls, v):
         """Validate max trials is positive."""
         if v <= 0:
             raise ValueError("Max trials must be positive")
         return v
 
-    @validator("cv_folds")
+    @field_validator("cv_folds")
+    @classmethod
     def validate_cv_folds(cls, v):
         """Validate CV folds is at least 2."""
         if v < 2:
             raise ValueError("CV folds must be at least 2")
         return v
 
-    @validator("top_k_for_ensemble")
+    @field_validator("top_k_for_ensemble")
+    @classmethod
     def validate_top_k_ensemble(cls, v):
         """Validate top K for ensemble is positive."""
         if v <= 0:
             raise ValueError("Top K for ensemble must be positive")
         return v
     
-    @validator("metric")
+    @field_validator("metric")
+    @classmethod
     def validate_metric(cls, v):
         """Convert string metrics to MetricType."""
         if isinstance(v, str):
@@ -193,7 +202,7 @@ class Config(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary."""
-        return self.dict()
+        return self.model_dump()
 
     def update_from_dict(self, updates: Dict[str, Any]) -> None:
         """Update config from dictionary."""
