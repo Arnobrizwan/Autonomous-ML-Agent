@@ -10,10 +10,10 @@ from typing import Any, Dict, List, Optional, Union
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Depends, Header
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from ..logging import get_logger
 from ..security import security_manager

@@ -157,6 +157,7 @@ class Config(BaseModel):
     top_k_for_ensemble: int = 3
     random_seed: int = 42
     use_mlflow: bool = False
+    artifacts_dir: Optional[str] = None
 
     # Sub-configurations
     preprocessing: PreprocessingSettings = Field(default_factory=PreprocessingSettings)

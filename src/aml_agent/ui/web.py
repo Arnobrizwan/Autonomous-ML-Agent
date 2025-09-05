@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 
 import pandas as pd
-import streamlit as st
 import plotly.express as px
+import streamlit as st
 
 from ..agent.loop import run_autonomous_ml
 from ..config import create_default_config

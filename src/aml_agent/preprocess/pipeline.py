@@ -12,6 +12,14 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 from ..logging import get_logger
 from ..types import PreprocessingConfig, TaskType
+from .advanced_transformers import (
+    AdvancedOutlierDetector,
+    AdvancedPreprocessingPipeline,
+    FeatureSelector,
+    PolynomialFeatureGenerator,
+    TextEmbeddingTransformer,
+    TextPreprocessor,
+)
 from .detectors import MissingValueDetector, OutlierDetector, TypeDetector
 from .transformers import (
     CategoricalEncoder,
@@ -19,14 +27,6 @@ from .transformers import (
     FeatureScaler,
     ImputationTransformer,
     OutlierHandler,
-)
-from .advanced_transformers import (
-    AdvancedPreprocessingPipeline,
-    TextPreprocessor,
-    TextEmbeddingTransformer,
-    PolynomialFeatureGenerator,
-    AdvancedOutlierDetector,
-    FeatureSelector,
 )
 
 logger = get_logger()
@@ -102,6 +102,7 @@ class PreprocessingPipeline:
         # Apply advanced feature engineering if enabled
         if self.advanced_pipeline is not None:
             logger.info("Applying advanced feature engineering...")
+            # Apply advanced features to the original data (before preprocessing)
             X_advanced = self.advanced_pipeline.fit_transform(X, y)
             logger.info(
                 f"Advanced features generated. Shape: {X.shape} -> {X_advanced.shape}"

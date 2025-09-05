@@ -580,8 +580,8 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
 
         if self.method == "mutual_info":
             from sklearn.feature_selection import (
-                mutual_info_regression,
                 mutual_info_classif,
+                mutual_info_regression,
             )
             from sklearn.preprocessing import LabelEncoder
 
@@ -765,7 +765,7 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
         result = X.copy()
 
         # Apply text preprocessing
-        if self.text_preprocessor is not None:
+        if self.text_preprocessor is not None and self.use_text_preprocessing:
             result = self.text_preprocessor.transform(result)
 
         # Apply text embeddings
