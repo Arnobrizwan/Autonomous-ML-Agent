@@ -8,7 +8,6 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     DEBIAN_FRONTEND=noninteractive \
-    APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 \
     UCF_FORCE_CONFFNEW=1
 
 # Install minimal build dependencies
