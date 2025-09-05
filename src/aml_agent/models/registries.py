@@ -2,171 +2,167 @@
 Model registry and factory for the Autonomous ML Agent.
 """
 
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
-from typing import Dict, Any, Optional, List, Tuple
-from sklearn.linear_model import LogisticRegression, LinearRegression
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, GradientBoostingClassifier, GradientBoostingRegressor
+from sklearn.base import BaseEstimator
+from sklearn.ensemble import (
+    GradientBoostingClassifier,
+    GradientBoostingRegressor,
+    RandomForestClassifier,
+    RandomForestRegressor,
+)
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.neural_network import MLPClassifier, MLPRegressor
-from sklearn.base import BaseEstimator
 
-from ..types import ModelType, TaskType
 from ..logging import get_logger
+from ..types import ModelType, TaskType
 
 logger = get_logger()
 
 
 class ModelRegistry:
     """Registry for available models and their configurations."""
-    
+
     def __init__(self):
         self.models = {}
         self._register_models()
-    
+
     def _register_models(self):
         """Register all available models."""
         # Classification models
         self.models[ModelType.LOGISTIC_REGRESSION] = {
-            'classifier': LogisticRegression,
-            'regressor': None,
-            'supports_class_weight': True,
-            'supports_early_stopping': False
+            "classifier": LogisticRegression,
+            "regressor": None,
+            "supports_class_weight": True,
+            "supports_early_stopping": False,
         }
-        
+
         self.models[ModelType.RANDOM_FOREST] = {
-            'classifier': RandomForestClassifier,
-            'regressor': RandomForestRegressor,
-            'supports_class_weight': True,
-            'supports_early_stopping': False
+            "classifier": RandomForestClassifier,
+            "regressor": RandomForestRegressor,
+            "supports_class_weight": True,
+            "supports_early_stopping": False,
         }
-        
+
         self.models[ModelType.GRADIENT_BOOSTING] = {
-            'classifier': GradientBoostingClassifier,
-            'regressor': GradientBoostingRegressor,
-            'supports_class_weight': False,
-            'supports_early_stopping': True
+            "classifier": GradientBoostingClassifier,
+            "regressor": GradientBoostingRegressor,
+            "supports_class_weight": False,
+            "supports_early_stopping": True,
         }
-        
+
         self.models[ModelType.KNN] = {
-            'classifier': KNeighborsClassifier,
-            'regressor': KNeighborsRegressor,
-            'supports_class_weight': False,
-            'supports_early_stopping': False
+            "classifier": KNeighborsClassifier,
+            "regressor": KNeighborsRegressor,
+            "supports_class_weight": False,
+            "supports_early_stopping": False,
         }
-        
+
         self.models[ModelType.MLP] = {
-            'classifier': MLPClassifier,
-            'regressor': MLPRegressor,
-            'supports_class_weight': False,
-            'supports_early_stopping': True
+            "classifier": MLPClassifier,
+            "regressor": MLPRegressor,
+            "supports_class_weight": False,
+            "supports_early_stopping": True,
         }
-        
+
         # Linear regression
         self.models[ModelType.LINEAR_REGRESSION] = {
-            'classifier': None,
-            'regressor': LinearRegression,
-            'supports_class_weight': False,
-            'supports_early_stopping': False
+            "classifier": None,
+            "regressor": LinearRegression,
+            "supports_class_weight": False,
+            "supports_early_stopping": False,
         }
-    
-    def get_model_class(self, model_type: ModelType, task_type: TaskType) -> BaseEstimator:
+
+    def get_model_class(
+        self, model_type: ModelType, task_type: TaskType
+    ) -> BaseEstimator:
         """
         Get model class for given type and task.
-        
+
         Args:
             model_type: Type of model
             task_type: Task type (classification/regression)
-            
+
         Returns:
             Model class
         """
         if model_type not in self.models:
             raise ValueError(f"Unknown model type: {model_type}")
-        
+
         model_info = self.models[model_type]
-        
+
         if task_type == TaskType.CLASSIFICATION:
-            if model_info['classifier'] is None:
+            if model_info["classifier"] is None:
                 raise ValueError(f"Model {model_type} does not support classification")
-            return model_info['classifier']
+            return model_info["classifier"]
         else:
-            if model_info['regressor'] is None:
+            if model_info["regressor"] is None:
                 raise ValueError(f"Model {model_type} does not support regression")
-            return model_info['regressor']
-    
+            return model_info["regressor"]
+
     def supports_class_weight(self, model_type: ModelType) -> bool:
         """Check if model supports class_weight parameter."""
-        return self.models[model_type]['supports_class_weight']
-    
+        return self.models[model_type]["supports_class_weight"]
+
     def supports_early_stopping(self, model_type: ModelType) -> bool:
         """Check if model supports early stopping."""
-        return self.models[model_type]['supports_early_stopping']
-    
+        return self.models[model_type]["supports_early_stopping"]
+
     def get_available_models(self, task_type: TaskType) -> List[ModelType]:
         """Get list of available models for task type."""
         available = []
         for model_type, info in self.models.items():
-            if task_type == TaskType.CLASSIFICATION and info['classifier'] is not None:
+            if task_type == TaskType.CLASSIFICATION and info["classifier"] is not None:
                 available.append(model_type)
-            elif task_type == TaskType.REGRESSION and info['regressor'] is not None:
+            elif task_type == TaskType.REGRESSION and info["regressor"] is not None:
                 available.append(model_type)
         return available
 
 
-def get_model_factory(model_type: ModelType, task_type: TaskType, 
-                     params: Optional[Dict[str, Any]] = None) -> BaseEstimator:
+def get_model_factory(
+    model_type: ModelType, task_type: TaskType, params: Optional[Dict[str, Any]] = None
+) -> BaseEstimator:
     """
     Create model instance with given parameters.
-    
+
     Args:
         model_type: Type of model
         task_type: Task type
         params: Model parameters
-        
+
     Returns:
         Model instance
     """
     registry = ModelRegistry()
     model_class = registry.get_model_class(model_type, task_type)
-    
+
     # Set default parameters
     default_params = _get_default_params(model_type, task_type)
     if params:
         default_params.update(params)
-    
+
     # Create model instance
     model = model_class(**default_params)
-    
-    logger.info(f"Created {model_type} model for {task_type} with params: {default_params}")
+
+    logger.info(
+        f"Created {model_type} model for {task_type} with params: {default_params}"
+    )
     return model
 
 
 def _get_default_params(model_type: ModelType, task_type: TaskType) -> Dict[str, Any]:
     """Get default parameters for model type."""
     defaults = {
-        ModelType.LOGISTIC_REGRESSION: {
-            'random_state': 42,
-            'max_iter': 1000
-        },
-        ModelType.LINEAR_REGRESSION: {
-        },
-        ModelType.RANDOM_FOREST: {
-            'random_state': 42,
-            'n_estimators': 100
-        },
-        ModelType.GRADIENT_BOOSTING: {
-            'random_state': 42,
-            'n_estimators': 100
-        },
-        ModelType.KNN: {
-            'n_neighbors': 5
-        },
-        ModelType.MLP: {
-            'random_state': 42,
-            'max_iter': 1000
-        }
+        ModelType.LOGISTIC_REGRESSION: {"random_state": 42, "max_iter": 1000},
+        ModelType.LINEAR_REGRESSION: {},
+        ModelType.RANDOM_FOREST: {"random_state": 42, "n_estimators": 100},
+        ModelType.GRADIENT_BOOSTING: {"random_state": 42, "n_estimators": 100},
+        ModelType.KNN: {"n_neighbors": 5},
+        ModelType.MLP: {"random_state": 42, "max_iter": 1000},
     }
-    
+
     return defaults.get(model_type, {})
 
 
@@ -174,77 +170,90 @@ def get_model_info(model_type: ModelType) -> Dict[str, Any]:
     """Get information about a model type."""
     registry = ModelRegistry()
     return {
-        'model_type': model_type,
-        'supports_classification': registry.models[model_type]['classifier'] is not None,
-        'supports_regression': registry.models[model_type]['regressor'] is not None,
-        'supports_class_weight': registry.supports_class_weight(model_type),
-        'supports_early_stopping': registry.supports_early_stopping(model_type)
+        "model_type": model_type,
+        "supports_classification": registry.models[model_type]["classifier"]
+        is not None,
+        "supports_regression": registry.models[model_type]["regressor"] is not None,
+        "supports_class_weight": registry.supports_class_weight(model_type),
+        "supports_early_stopping": registry.supports_early_stopping(model_type),
     }
 
 
-def validate_model_params(model_type: ModelType, params: Dict[str, Any]) -> Dict[str, Any]:
+def validate_model_params(
+    model_type: ModelType, params: Dict[str, Any]
+) -> Dict[str, Any]:
     """
     Validate and clean model parameters.
-    
+
     Args:
         model_type: Type of model
         params: Parameters to validate
-        
+
     Returns:
         Validated parameters
     """
     registry = ModelRegistry()
     validated_params = params.copy()
-    
+
     # Remove unsupported parameters
-    if not registry.supports_class_weight(model_type) and 'class_weight' in validated_params:
+    if (
+        not registry.supports_class_weight(model_type)
+        and "class_weight" in validated_params
+    ):
         logger.warning(f"Removing unsupported class_weight parameter for {model_type}")
-        validated_params.pop('class_weight')
-    
-    if not registry.supports_early_stopping(model_type) and 'early_stopping' in validated_params:
-        logger.warning(f"Removing unsupported early_stopping parameter for {model_type}")
-        validated_params.pop('early_stopping')
-    
+        validated_params.pop("class_weight")
+
+    if (
+        not registry.supports_early_stopping(model_type)
+        and "early_stopping" in validated_params
+    ):
+        logger.warning(
+            f"Removing unsupported early_stopping parameter for {model_type}"
+        )
+        validated_params.pop("early_stopping")
+
     # Validate specific parameters
     if model_type == ModelType.LOGISTIC_REGRESSION:
-        if 'solver' in validated_params and 'penalty' in validated_params:
-            solver = validated_params['solver']
-            penalty = validated_params['penalty']
-            if penalty == 'l1' and solver not in ['liblinear', 'saga']:
-                logger.warning(f"L1 penalty requires liblinear or saga solver, got {solver}")
-                validated_params['solver'] = 'liblinear'
-    
+        if "solver" in validated_params and "penalty" in validated_params:
+            solver = validated_params["solver"]
+            penalty = validated_params["penalty"]
+            if penalty == "l1" and solver not in ["liblinear", "saga"]:
+                logger.warning(
+                    f"L1 penalty requires liblinear or saga solver, got {solver}"
+                )
+                validated_params["solver"] = "liblinear"
+
     return validated_params
 
 
 def get_model_complexity(model_type: ModelType) -> str:
     """Get model complexity level."""
     complexity_map = {
-        ModelType.LINEAR_REGRESSION: 'low',
-        ModelType.LOGISTIC_REGRESSION: 'low',
-        ModelType.KNN: 'low',
-        ModelType.RANDOM_FOREST: 'medium',
-        ModelType.GRADIENT_BOOSTING: 'high',
-        ModelType.MLP: 'high'
+        ModelType.LINEAR_REGRESSION: "low",
+        ModelType.LOGISTIC_REGRESSION: "low",
+        ModelType.KNN: "low",
+        ModelType.RANDOM_FOREST: "medium",
+        ModelType.GRADIENT_BOOSTING: "high",
+        ModelType.MLP: "high",
     }
-    return complexity_map.get(model_type, 'medium')
+    return complexity_map.get(model_type, "medium")
 
 
-def estimate_training_time(model_type: ModelType, n_samples: int, n_features: int) -> float:
+def estimate_training_time(
+    model_type: ModelType, n_samples: int, n_features: int
+) -> float:
     """Estimate training time in seconds."""
     # Rough estimates based on model complexity
     base_time = 0.1  # Base time in seconds
-    
-    complexity_multipliers = {
-        'low': 1.0,
-        'medium': 2.0,
-        'high': 5.0
-    }
-    
+
+    complexity_multipliers = {"low": 1.0, "medium": 2.0, "high": 5.0}
+
     complexity = get_model_complexity(model_type)
     multiplier = complexity_multipliers[complexity]
-    
+
     # Scale with data size
-    size_factor = (n_samples * n_features) / 10000  # Normalize to 10k samples * features
-    
+    size_factor = (
+        n_samples * n_features
+    ) / 10000  # Normalize to 10k samples * features
+
     return base_time * multiplier * size_factor

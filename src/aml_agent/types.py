@@ -2,16 +2,18 @@
 Type definitions for the Autonomous ML Agent.
 """
 
-from enum import Enum
-from typing import Any, Dict, List, Optional, Union, Tuple
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import numpy as np
 import pandas as pd
 
 
 class TaskType(str, Enum):
     """Task type enumeration."""
+
     CLASSIFICATION = "classification"
     REGRESSION = "regression"
     AUTO = "auto"
@@ -19,6 +21,7 @@ class TaskType(str, Enum):
 
 class MetricType(str, Enum):
     """Metric type enumeration."""
+
     # Classification metrics
     ACCURACY = "accuracy"
     PRECISION = "precision"
@@ -28,25 +31,27 @@ class MetricType(str, Enum):
     F1_WEIGHTED = "f1_weighted"
     AUC = "auc"
     BALANCED_ACCURACY = "balanced_accuracy"
-    
+
     # Regression metrics
     MAE = "mae"
     MSE = "mse"
     RMSE = "rmse"
     R2 = "r2"
-    
+
     # Auto selection
     AUTO = "auto"
 
 
 class SearchStrategy(str, Enum):
     """Hyperparameter search strategy."""
+
     RANDOM = "random"
     BAYES = "bayes"
 
 
 class ModelType(str, Enum):
     """Model type enumeration."""
+
     LOGISTIC_REGRESSION = "logistic_regression"
     LINEAR_REGRESSION = "linear_regression"
     RANDOM_FOREST = "random_forest"
@@ -57,6 +62,7 @@ class ModelType(str, Enum):
 
 class ImputationMethod(str, Enum):
     """Imputation method enumeration."""
+
     MEDIAN = "median"
     MEAN = "mean"
     MODE = "mode"
@@ -65,6 +71,7 @@ class ImputationMethod(str, Enum):
 
 class EncodingMethod(str, Enum):
     """Categorical encoding method."""
+
     ONEHOT = "onehot"
     TARGET = "target"
     ORDINAL = "ordinal"
@@ -72,6 +79,7 @@ class EncodingMethod(str, Enum):
 
 class OutlierMethod(str, Enum):
     """Outlier detection method."""
+
     IQR = "iqr"
     ZSCORE = "zscore"
     ISOLATION_FOREST = "isolation_forest"
@@ -80,6 +88,7 @@ class OutlierMethod(str, Enum):
 @dataclass
 class DatasetProfile:
     """Dataset profiling information."""
+
     n_rows: int
     n_cols: int
     n_numeric: int
@@ -97,6 +106,7 @@ class DatasetProfile:
 @dataclass
 class RunMetadata:
     """Metadata for a training run."""
+
     run_id: str
     start_time: datetime
     end_time: Optional[datetime] = None
@@ -111,6 +121,7 @@ class RunMetadata:
 @dataclass
 class TrialResult:
     """Result of a single hyperparameter trial."""
+
     trial_id: int
     model_type: ModelType
     params: Dict[str, Any]
@@ -126,6 +137,7 @@ class TrialResult:
 @dataclass
 class LeaderboardEntry:
     """Entry in the model leaderboard."""
+
     rank: int
     model_type: ModelType
     score: float
@@ -141,6 +153,7 @@ class LeaderboardEntry:
 @dataclass
 class ModelCard:
     """Model card information."""
+
     model_name: str
     model_type: ModelType
     task_type: TaskType
@@ -156,6 +169,7 @@ class ModelCard:
 @dataclass
 class PredictionRequest:
     """Single prediction request."""
+
     features: Dict[str, Any]
     run_id: str
 
@@ -163,6 +177,7 @@ class PredictionRequest:
 @dataclass
 class PredictionResponse:
     """Prediction response."""
+
     prediction: Union[int, float, List[float]]
     confidence: Optional[float] = None
     probabilities: Optional[List[float]] = None
@@ -172,6 +187,7 @@ class PredictionResponse:
 @dataclass
 class BatchPredictionRequest:
     """Batch prediction request."""
+
     data: Union[pd.DataFrame, str]  # DataFrame or CSV string
     run_id: str
 
@@ -179,6 +195,7 @@ class BatchPredictionRequest:
 @dataclass
 class BatchPredictionResponse:
     """Batch prediction response."""
+
     predictions: List[Union[int, float, List[float]]]
     confidences: Optional[List[float]] = None
     probabilities: Optional[List[List[float]]] = None
@@ -188,6 +205,7 @@ class BatchPredictionResponse:
 @dataclass
 class EnsembleConfig:
     """Ensemble configuration."""
+
     method: str  # "stacking", "blending", "voting"
     top_k: int
     meta_learner: Optional[str] = None
@@ -197,18 +215,19 @@ class EnsembleConfig:
 @dataclass
 class BudgetClock:
     """Budget tracking for time-limited optimization."""
+
     start_time: datetime
     time_budget_seconds: float
     elapsed_seconds: float = 0.0
-    
+
     def is_expired(self) -> bool:
         """Check if budget is expired."""
         return self.elapsed_seconds >= self.time_budget_seconds
-    
+
     def remaining_seconds(self) -> float:
         """Get remaining time in seconds."""
         return max(0, self.time_budget_seconds - self.elapsed_seconds)
-    
+
     def update_elapsed(self) -> None:
         """Update elapsed time."""
         self.elapsed_seconds = (datetime.now() - self.start_time).total_seconds()
@@ -217,6 +236,7 @@ class BudgetClock:
 @dataclass
 class LLMConfig:
     """LLM configuration for planning and model cards."""
+
     enabled: bool = False
     provider: str = "openai"  # "openai", "gemini"
     model: str = "gpt-3.5-turbo"
@@ -228,6 +248,7 @@ class LLMConfig:
 @dataclass
 class PreprocessingConfig:
     """Preprocessing configuration."""
+
     handle_missing: bool = True
     impute_numeric: ImputationMethod = ImputationMethod.MEDIAN
     impute_categorical: ImputationMethod = ImputationMethod.MOST_FREQUENT
@@ -241,6 +262,7 @@ class PreprocessingConfig:
 @dataclass
 class ModelConfig:
     """Model-specific configuration."""
+
     enabled: bool = True
     class_weight: Optional[str] = None
     early_stopping: bool = False
@@ -250,6 +272,7 @@ class ModelConfig:
 @dataclass
 class SearchSpace:
     """Hyperparameter search space definition."""
+
     model_type: ModelType
     space: Dict[str, Any]
     fixed_params: Dict[str, Any] = None
@@ -258,6 +281,7 @@ class SearchSpace:
 @dataclass
 class PlannerProposal:
     """LLM planner proposal for optimization strategy."""
+
     candidate_models: List[ModelType]
     search_budgets: Dict[ModelType, int]
     metric: MetricType

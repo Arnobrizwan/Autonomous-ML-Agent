@@ -14,24 +14,23 @@ __author__ = "AML Agent Team"
 
 from .config import Config, load_config
 from .types import (
-    TaskType,
+    LeaderboardEntry,
     MetricType,
-    SearchStrategy,
     ModelType,
     RunMetadata,
+    SearchStrategy,
+    TaskType,
     TrialResult,
-    LeaderboardEntry,
 )
 
 __all__ = [
     "Config",
     "load_config",
     "TaskType",
-    "MetricType", 
+    "MetricType",
     "SearchStrategy",
     "ModelType",
     "RunMetadata",
     "TrialResult",
     "LeaderboardEntry",
 ]
-

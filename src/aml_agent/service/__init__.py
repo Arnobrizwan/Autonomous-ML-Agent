@@ -2,20 +2,20 @@
 FastAPI service module for the Autonomous ML Agent.
 """
 
-from .app import create_app, app
+from .app import app, create_app
 from .schemas import (
-    PredictionRequest,
-    PredictionResponse,
     BatchPredictionRequest,
     BatchPredictionResponse,
-    HealthResponse
+    HealthResponse,
+    PredictionRequest,
+    PredictionResponse,
 )
 
 __all__ = [
     "create_app",
     "app",
     "PredictionRequest",
-    "PredictionResponse", 
+    "PredictionResponse",
     "BatchPredictionRequest",
     "BatchPredictionResponse",
     "HealthResponse",

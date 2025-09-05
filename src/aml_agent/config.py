@@ -3,28 +3,30 @@ Configuration management for the Autonomous ML Agent.
 """
 
 import os
-import yaml
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
+
+import yaml
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings
 
 from .types import (
-    TaskType,
-    MetricType,
-    SearchStrategy,
-    ImputationMethod,
     EncodingMethod,
+    EnsembleConfig,
+    ImputationMethod,
+    LLMConfig,
+    MetricType,
+    ModelConfig,
     OutlierMethod,
     PreprocessingConfig,
-    ModelConfig,
-    LLMConfig,
-    EnsembleConfig,
+    SearchStrategy,
+    TaskType,
 )
 
 
 class PreprocessingSettings(BaseModel):
     """Preprocessing configuration settings."""
+
     handle_missing: bool = True
     impute_numeric: ImputationMethod = ImputationMethod.MEDIAN
     impute_categorical: ImputationMethod = ImputationMethod.MOST_FREQUENT
@@ -37,6 +39,7 @@ class PreprocessingSettings(BaseModel):
 
 class ModelSettings(BaseModel):
     """Model configuration settings."""
+
     logistic_regression: ModelConfig = ModelConfig(class_weight="balanced")
     linear_regression: ModelConfig = ModelConfig()
     random_forest: ModelConfig = ModelConfig(class_weight="balanced")
@@ -47,40 +50,52 @@ class ModelSettings(BaseModel):
 
 class SearchSpaceSettings(BaseModel):
     """Hyperparameter search space settings."""
-    logistic_regression: Dict[str, Any] = Field(default_factory=lambda: {
-        "C": [0.001, 1000],
-        "penalty": ["l1", "l2", "elasticnet"],
-        "solver": ["liblinear", "saga"]
-    })
-    linear_regression: Dict[str, Any] = Field(default_factory=lambda: {
-        "fit_intercept": [True, False]
-    })
-    random_forest: Dict[str, Any] = Field(default_factory=lambda: {
-        "n_estimators": [10, 200],
-        "max_depth": [3, 20],
-        "min_samples_split": [2, 20],
-        "min_samples_leaf": [1, 10]
-    })
-    gradient_boosting: Dict[str, Any] = Field(default_factory=lambda: {
-        "n_estimators": [10, 200],
-        "learning_rate": [0.01, 0.3],
-        "max_depth": [3, 10]
-    })
-    knn: Dict[str, Any] = Field(default_factory=lambda: {
-        "n_neighbors": [3, 20],
-        "weights": ["uniform", "distance"],
-        "metric": ["euclidean", "manhattan"]
-    })
-    mlp: Dict[str, Any] = Field(default_factory=lambda: {
-        "hidden_layer_sizes": [[50], [100], [50, 50], [100, 50]],
-        "activation": ["relu", "tanh"],
-        "learning_rate": [0.001, 0.1],
-        "alpha": [0.0001, 0.1]
-    })
+
+    logistic_regression: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "C": [0.001, 1000],
+            "penalty": ["l1", "l2", "elasticnet"],
+            "solver": ["liblinear", "saga"],
+        }
+    )
+    linear_regression: Dict[str, Any] = Field(
+        default_factory=lambda: {"fit_intercept": [True, False]}
+    )
+    random_forest: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "n_estimators": [10, 200],
+            "max_depth": [3, 20],
+            "min_samples_split": [2, 20],
+            "min_samples_leaf": [1, 10],
+        }
+    )
+    gradient_boosting: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "n_estimators": [10, 200],
+            "learning_rate": [0.01, 0.3],
+            "max_depth": [3, 10],
+        }
+    )
+    knn: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "n_neighbors": [3, 20],
+            "weights": ["uniform", "distance"],
+            "metric": ["euclidean", "manhattan"],
+        }
+    )
+    mlp: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "hidden_layer_sizes": [[50], [100], [50, 50], [100, 50]],
+            "activation": ["relu", "tanh"],
+            "learning_rate": [0.001, 0.1],
+            "alpha": [0.0001, 0.1],
+        }
+    )
 
 
 class LLMSettings(BaseModel):
     """LLM configuration settings."""
+
     enabled: bool = False
     provider: str = "openai"
     model: str = "gpt-3.5-turbo"
@@ -90,6 +105,7 @@ class LLMSettings(BaseModel):
 
 class ExportSettings(BaseModel):
     """Export configuration settings."""
+
     save_pipeline: bool = True
     save_artifacts: bool = True
     generate_model_card: bool = True
@@ -99,6 +115,7 @@ class ExportSettings(BaseModel):
 
 class APISettings(BaseModel):
     """API configuration settings."""
+
     host: str = "0.0.0.0"
     port: int = 8000
     workers: int = 1
@@ -108,6 +125,7 @@ class APISettings(BaseModel):
 
 class EnvironmentSettings(BaseSettings):
     """Environment variable settings."""
+
     openai_api_key: Optional[str] = Field(default=None)
     gemini_api_key: Optional[str] = Field(default=None)
     mlflow_tracking_uri: Optional[str] = Field(default=None)
@@ -119,12 +137,13 @@ class EnvironmentSettings(BaseSettings):
         "env_file": ".env",
         "env_file_encoding": "utf-8",
         "env_prefix": "",
-        "case_sensitive": False
+        "case_sensitive": False,
     }
 
 
 class Config(BaseModel):
     """Main configuration class."""
+
     # Core settings
     data_path: str
     target: Optional[str] = None
@@ -186,7 +205,7 @@ class Config(BaseModel):
         if v <= 0:
             raise ValueError("Top K for ensemble must be positive")
         return v
-    
+
     @field_validator("metric")
     @classmethod
     def validate_metric(cls, v):
@@ -232,30 +251,30 @@ class Config(BaseModel):
             model=self.llm.model,
             temperature=self.llm.temperature,
             max_tokens=self.llm.max_tokens,
-            api_key=getattr(env_settings, f"{self.llm.provider}_api_key", None)
+            api_key=getattr(env_settings, f"{self.llm.provider}_api_key", None),
         )
 
 
 def load_config(config_path: Union[str, Path]) -> Config:
     """Load configuration from YAML file."""
     config_path = Path(config_path)
-    
+
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
-    
-    with open(config_path, 'r') as f:
+
+    with open(config_path, "r") as f:
         config_data = yaml.safe_load(f)
-    
+
     # Load environment settings
     env_settings = EnvironmentSettings()
-    
+
     # Override with environment variables
     if env_settings.default_data_path and "data_path" not in config_data:
         config_data["data_path"] = env_settings.default_data_path
-    
+
     # Create config object
     config = Config(**config_data)
-    
+
     return config
 
 
@@ -273,7 +292,7 @@ def create_default_config() -> Config:
         enable_ensembling=True,
         top_k_for_ensemble=3,
         random_seed=42,
-        use_mlflow=False
+        use_mlflow=False,
     )
 
 
@@ -281,6 +300,6 @@ def save_config(config: Config, config_path: Union[str, Path]) -> None:
     """Save configuration to YAML file."""
     config_path = Path(config_path)
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    with open(config_path, 'w') as f:
+
+    with open(config_path, "w") as f:
         yaml.dump(config.dict(), f, default_flow_style=False, indent=2)

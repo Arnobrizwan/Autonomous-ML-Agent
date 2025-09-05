@@ -7,7 +7,7 @@ from .leaderboard import Leaderboard, create_leaderboard
 
 __all__ = [
     "app",
-    "main", 
+    "main",
     "Leaderboard",
     "create_leaderboard",
 ]
