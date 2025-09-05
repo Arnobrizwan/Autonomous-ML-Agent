@@ -333,4 +333,20 @@ def create_app(artifacts_dir: Path) -> FastAPI:
 
 
 # Create default app instance
-app = FastAPI(title="Autonomous ML Agent API", version="0.1.0")
+def get_default_app():
+    """Get default app instance with basic health check."""
+    app = FastAPI(title="Autonomous ML Agent API", version="0.1.0")
+    
+    @app.get("/healthz")
+    async def health_check():
+        """Basic health check endpoint."""
+        return {"status": "healthy", "version": "0.1.0"}
+    
+    @app.get("/")
+    async def root():
+        """Root endpoint."""
+        return {"message": "Autonomous ML Agent API", "version": "0.1.0"}
+    
+    return app
+
+app = get_default_app()
