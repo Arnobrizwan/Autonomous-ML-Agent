@@ -117,7 +117,6 @@ jobs:
         cache-from: type=gha,scope=prod
         cache-to: type=gha,mode=max,scope=prod
         platforms: linux/amd64,linux/arm64
-        outputs: type=docker
         build-args: |
           BUILDKIT_INLINE_CACHE=1
 
