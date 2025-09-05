@@ -13,6 +13,17 @@ help:
 	@echo "  serve       - Start FastAPI prediction service"
 	@echo "  predict     - Make sample prediction"
 	@echo "  verify      - Run full local verification harness"
+	@echo ""
+	@echo "Docker commands:"
+	@echo "  docker-build      - Build Docker image locally"
+	@echo "  docker-build-prod - Build multi-platform production image"
+	@echo "  docker-run        - Run container with volume mounts"
+	@echo "  docker-compose-up - Start all services with docker-compose"
+	@echo "  docker-compose-down - Stop all services"
+	@echo "  docker-compose-logs - View service logs"
+	@echo "  docker-test       - Test Docker image functionality"
+	@echo "  docker-push       - Push image to Docker Hub (set DOCKER_USERNAME)"
+	@echo "  docker-clean      - Clean Docker system and volumes"
 
 # Setup environment
 setup:
@@ -71,10 +82,34 @@ verify:
 
 # Docker commands
 docker-build:
-	docker build -f docker/Dockerfile -t aml-agent .
+	docker build -f docker/Dockerfile -t aml-agent:latest .
+
+docker-build-prod:
+	docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile -t aml-agent:latest .
 
 docker-run:
-	docker-compose up
+	docker run --rm -p 8000:8000 -v $(PWD)/data:/app/data -v $(PWD)/artifacts:/app/artifacts aml-agent:latest
+
+docker-compose-up:
+	docker-compose up -d
+
+docker-compose-down:
+	docker-compose down
+
+docker-compose-logs:
+	docker-compose logs -f
+
+docker-test:
+	docker run --rm aml-agent:latest python -c "import aml_agent; print('Import successful')"
+	docker run --rm aml-agent:latest python -c "from aml_agent.service.app import create_app; print('FastAPI app creation successful')"
+
+docker-push:
+	docker tag aml-agent:latest $(DOCKER_USERNAME)/aml-agent:latest
+	docker push $(DOCKER_USERNAME)/aml-agent:latest
+
+docker-clean:
+	docker system prune -f
+	docker volume prune -f
 
 # Development
 dev-setup: setup
