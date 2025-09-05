@@ -3,9 +3,8 @@ LLM-guided planning for hyperparameter optimization strategy.
 """
 
 import json
-import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from ..logging import get_logger
 from ..types import (

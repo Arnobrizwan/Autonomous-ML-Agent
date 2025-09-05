@@ -3,14 +3,13 @@ Model card generation for the Autonomous ML Agent.
 """
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import confusion_matrix
 
 from ..interpret.explain import ModelExplainer
 from ..interpret.importance import FeatureImportanceAnalyzer

@@ -2,7 +2,7 @@
 Model explanation and interpretability using SHAP and other methods.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
@@ -10,7 +10,6 @@ import pandas as pd
 # Optional imports for plotting
 try:
     import matplotlib.pyplot as plt
-    import seaborn as sns
 
     PLOTTING_AVAILABLE = True
 except ImportError:
@@ -18,7 +17,7 @@ except ImportError:
 from pathlib import Path
 
 from ..logging import get_logger
-from ..types import ModelType, TaskType, TrialResult
+from ..types import TaskType
 from .importance import FeatureImportanceAnalyzer
 
 logger = get_logger()

@@ -21,6 +21,9 @@ from .types import (
     TaskType,
 )
 
+# Re-export PreprocessingConfig for backward compatibility
+__all__ = ["PreprocessingConfig"]
+
 
 class PreprocessingSettings(BaseModel):
     """Preprocessing configuration settings."""

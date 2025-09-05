@@ -5,7 +5,7 @@ Artifact export functionality for the Autonomous ML Agent.
 import json
 import pickle
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import joblib
 import numpy as np
