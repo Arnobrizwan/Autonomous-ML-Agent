@@ -2,18 +2,19 @@
 Comprehensive tests for monitoring and metrics system.
 """
 
-import pytest
-import time
 import json
-from unittest.mock import patch, MagicMock
+import time
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from src.aml_agent.monitoring.metrics import (
     HealthChecker,
-    PerformanceMonitor,
     MetricsCollector,
+    PerformanceMonitor,
     health_checker,
-    performance_monitor,
     metrics_collector,
+    performance_monitor,
 )
 
 

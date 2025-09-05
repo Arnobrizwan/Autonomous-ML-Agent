@@ -112,9 +112,9 @@ class HealthChecker:
     def _check_dependencies_health(self) -> Dict[str, Any]:
         """Check critical dependencies."""
         try:
-            import sklearn
-            import pandas
             import numpy
+            import pandas
+            import sklearn
 
             return {
                 "status": "healthy",
@@ -481,4 +481,3 @@ health_checker = HealthChecker()
 
 # Additional global instances
 metrics_collector = MetricsCollector()
-

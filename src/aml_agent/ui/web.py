@@ -17,6 +17,10 @@ from ..utils import create_sample_data, load_data
 
 logger = get_logger()
 
+# Initialize monitoring components
+health_checker = HealthChecker()
+performance_monitor = PerformanceMonitor()
+
 
 def main():
     """Main Streamlit application."""
