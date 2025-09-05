@@ -19,18 +19,21 @@ from sklearn.neural_network import MLPClassifier, MLPRegressor
 # Advanced ML Models
 try:
     import xgboost as xgb
+
     XGBOOST_AVAILABLE = True
 except ImportError:
     XGBOOST_AVAILABLE = False
 
 try:
     import lightgbm as lgb
+
     LIGHTGBM_AVAILABLE = True
 except ImportError:
     LIGHTGBM_AVAILABLE = False
 
 try:
     import catboost as cb
+
     CATBOOST_AVAILABLE = True
 except ImportError:
     CATBOOST_AVAILABLE = False
@@ -211,7 +214,6 @@ def _get_default_params(model_type: ModelType, task_type: TaskType) -> Dict[str,
         ModelType.GRADIENT_BOOSTING: {"random_state": 42, "n_estimators": 100},
         ModelType.KNN: {"n_neighbors": 5},
         ModelType.MLP: {"random_state": 42, "max_iter": 1000},
-        
         # Advanced ML Models
         ModelType.XGBOOST: {
             "random_state": 42,
@@ -221,7 +223,9 @@ def _get_default_params(model_type: ModelType, task_type: TaskType) -> Dict[str,
             "subsample": 0.8,
             "colsample_bytree": 0.8,
             "early_stopping_rounds": 10,
-            "eval_metric": "logloss" if task_type == TaskType.CLASSIFICATION else "rmse",
+            "eval_metric": (
+                "logloss" if task_type == TaskType.CLASSIFICATION else "rmse"
+            ),
         },
         ModelType.LIGHTGBM: {
             "random_state": 42,
@@ -317,7 +321,6 @@ def get_model_complexity(model_type: ModelType) -> str:
         ModelType.RANDOM_FOREST: "medium",
         ModelType.GRADIENT_BOOSTING: "high",
         ModelType.MLP: "high",
-        
         # Advanced ML Models
         ModelType.XGBOOST: "high",
         ModelType.LIGHTGBM: "high",

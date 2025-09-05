@@ -58,7 +58,7 @@ class ModelType(str, Enum):
     GRADIENT_BOOSTING = "gradient_boosting"
     KNN = "knn"
     MLP = "mlp"
-    
+
     # Advanced ML Models
     XGBOOST = "xgboost"
     LIGHTGBM = "lightgbm"

@@ -33,20 +33,22 @@ logger = get_logger()
 security = HTTPBearer(auto_error=False)
 
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security),
-                    x_forwarded_for: Optional[str] = Header(None)) -> Optional[str]:
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    x_forwarded_for: Optional[str] = Header(None),
+) -> Optional[str]:
     """Get current user from API key."""
     api_key = None
     if credentials:
         api_key = credentials.credentials
-    
+
     # Get IP address
-    ip_address = x_forwarded_for.split(',')[0].strip() if x_forwarded_for else "unknown"
-    
+    ip_address = x_forwarded_for.split(",")[0].strip() if x_forwarded_for else "unknown"
+
     # Authenticate
     if not security_manager.authenticate_request(api_key, ip_address):
         raise HTTPException(status_code=401, detail="Authentication failed")
-    
+
     return api_key
 
 
@@ -291,8 +293,10 @@ def create_app(artifacts_dir: Path) -> FastAPI:
         return model_service.get_model_info()
 
     @app.post("/predict_one", response_model=PredictionResponse)
-    async def predict_one(request: PredictionRequest, 
-                         current_user: Optional[str] = Depends(get_current_user)):
+    async def predict_one(
+        request: PredictionRequest,
+        current_user: Optional[str] = Depends(get_current_user),
+    ):
         """Make single prediction."""
         if not model_service or not model_service.is_loaded:
             raise HTTPException(status_code=500, detail="Model not loaded")
@@ -300,8 +304,10 @@ def create_app(artifacts_dir: Path) -> FastAPI:
         return model_service.predict_single(request.features)
 
     @app.post("/predict_batch", response_model=BatchPredictionResponse)
-    async def predict_batch(request: BatchPredictionRequest,
-                           current_user: Optional[str] = Depends(get_current_user)):
+    async def predict_batch(
+        request: BatchPredictionRequest,
+        current_user: Optional[str] = Depends(get_current_user),
+    ):
         """Make batch predictions."""
         if not model_service or not model_service.is_loaded:
             raise HTTPException(status_code=500, detail="Model not loaded")

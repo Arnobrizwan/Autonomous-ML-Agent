@@ -31,8 +31,8 @@ class MetricsCollector:
         """Record a timing metric."""
         self.timers[name].append(duration)
         if len(self.timers[name]) > self.max_history:
-            self.timers[name] = self.timers[name][-self.max_history:]
-        
+            self.timers[name] = self.timers[name][-self.max_history :]
+
         self._add_metric(f"timer_{name}", duration)
 
     def record_gauge(self, name: str, value: float) -> None:
@@ -42,19 +42,21 @@ class MetricsCollector:
     def _add_metric(self, name: str, value: float) -> None:
         """Add metric to history."""
         timestamp = time.time()
-        self.metrics[name].append({
-            "timestamp": timestamp,
-            "value": value,
-            "datetime": datetime.fromtimestamp(timestamp)
-        })
+        self.metrics[name].append(
+            {
+                "timestamp": timestamp,
+                "value": value,
+                "datetime": datetime.fromtimestamp(timestamp),
+            }
+        )
 
     def get_metric_summary(self, name: str) -> Optional[Dict[str, Any]]:
         """Get summary statistics for a metric."""
         if name not in self.metrics or not self.metrics[name]:
             return None
-        
+
         values = [m["value"] for m in self.metrics[name]]
-        
+
         return {
             "name": name,
             "count": len(values),
@@ -63,20 +65,17 @@ class MetricsCollector:
             "mean": sum(values) / len(values),
             "latest": values[-1],
             "first_seen": self.metrics[name][0]["datetime"],
-            "last_seen": self.metrics[name][-1]["datetime"]
+            "last_seen": self.metrics[name][-1]["datetime"],
         }
 
     def get_all_metrics(self) -> Dict[str, Any]:
         """Get all metrics summary."""
         summary = {}
-        
+
         # Counter metrics
         for name, value in self.counters.items():
-            summary[f"counter_{name}"] = {
-                "type": "counter",
-                "value": value
-            }
-        
+            summary[f"counter_{name}"] = {"type": "counter", "value": value}
+
         # Timer metrics
         for name, values in self.timers.items():
             if values:
@@ -86,9 +85,9 @@ class MetricsCollector:
                     "min": min(values),
                     "max": max(values),
                     "mean": sum(values) / len(values),
-                    "latest": values[-1]
+                    "latest": values[-1],
                 }
-        
+
         # Gauge metrics
         for name, history in self.metrics.items():
             if not name.startswith(("counter_", "timer_")):
@@ -96,9 +95,9 @@ class MetricsCollector:
                     summary[name] = {
                         "type": "gauge",
                         "latest": history[-1]["value"],
-                        "count": len(history)
+                        "count": len(history),
                     }
-        
+
         return summary
 
     def get_uptime(self) -> float:
@@ -132,7 +131,7 @@ class PerformanceMonitor:
     def end_request(self, request_id: str, success: bool = True) -> None:
         """End monitoring a request."""
         self.active_requests = max(0, self.active_requests - 1)
-        
+
         if success:
             self.metrics.increment_counter("requests_completed")
         else:
@@ -159,7 +158,7 @@ class PerformanceMonitor:
         return {
             "uptime_seconds": self.metrics.get_uptime(),
             "active_requests": self.active_requests,
-            "metrics": self.metrics.get_all_metrics()
+            "metrics": self.metrics.get_all_metrics(),
         }
 
 
@@ -179,27 +178,24 @@ class HealthChecker:
         results = {
             "status": "healthy",
             "checks": {},
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
-        
+
         overall_healthy = True
-        
+
         for name, check_func in self.health_checks.items():
             try:
                 check_result = check_func()
                 results["checks"][name] = {
                     "status": "healthy" if check_result else "unhealthy",
-                    "result": check_result
+                    "result": check_result,
                 }
                 if not check_result:
                     overall_healthy = False
             except Exception as e:
-                results["checks"][name] = {
-                    "status": "error",
-                    "error": str(e)
-                }
+                results["checks"][name] = {"status": "error", "error": str(e)}
                 overall_healthy = False
-        
+
         results["status"] = "healthy" if overall_healthy else "unhealthy"
         return results
 
@@ -207,6 +203,7 @@ class HealthChecker:
         """Check if memory usage is reasonable."""
         try:
             import psutil
+
             memory_percent = psutil.virtual_memory().percent
             return memory_percent < 90  # Consider unhealthy if > 90%
         except ImportError:
@@ -216,7 +213,8 @@ class HealthChecker:
         """Check if disk space is sufficient."""
         try:
             import shutil
-            free_space = shutil.disk_usage('.').free
+
+            free_space = shutil.disk_usage(".").free
             return free_space > 1024 * 1024 * 1024  # At least 1GB free
         except:
             return True

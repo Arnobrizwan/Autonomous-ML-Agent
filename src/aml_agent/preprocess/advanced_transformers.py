@@ -13,6 +13,7 @@ from sklearn.preprocessing import PolynomialFeatures, RobustScaler
 
 try:
     from textblob import TextBlob
+
     TEXTBLOB_AVAILABLE = True
 except ImportError:
     TEXTBLOB_AVAILABLE = False
@@ -21,18 +22,21 @@ try:
     import nltk
     from nltk.corpus import stopwords
     from nltk.tokenize import word_tokenize
+
     NLTK_AVAILABLE = True
 except ImportError:
     NLTK_AVAILABLE = False
 
 try:
     from sentence_transformers import SentenceTransformer
+
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
 
 try:
     import spacy
+
     SPACY_AVAILABLE = True
 except ImportError:
     SPACY_AVAILABLE = False
@@ -66,7 +70,7 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
     def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> "TextPreprocessor":
         """Fit the text preprocessor."""
         text_columns = self._get_text_columns(X)
-        
+
         if not text_columns:
             logger.warning("No text columns found for preprocessing")
             return self
@@ -100,22 +104,22 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
             raise ValueError("TextPreprocessor must be fitted before transform")
 
         text_columns = self._get_text_columns(X)
-        
+
         if not text_columns:
             return X
 
         result = X.copy()
-        
+
         # Process each text column
         for col in text_columns:
             text_data = X[col].fillna("").astype(str)
-            
+
             # TF-IDF features
             tfidf_features = self.vectorizer.transform(text_data)
             tfidf_df = pd.DataFrame(
                 tfidf_features.toarray(),
                 columns=[f"{col}_tfidf_{i}" for i in range(tfidf_features.shape[1])],
-                index=X.index
+                index=X.index,
             )
             result = pd.concat([result, tfidf_df], axis=1)
 
@@ -132,7 +136,7 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
 
         # Remove original text columns
         result = result.drop(columns=text_columns)
-        
+
         logger.info(f"Text preprocessing completed. New shape: {result.shape}")
         return result
 
@@ -146,14 +150,17 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
                 if len(sample_values) > 0:
                     # Check if values contain words (not just numbers or categories)
                     text_ratio = sum(
-                        1 for val in sample_values 
+                        1
+                        for val in sample_values
                         if isinstance(val, str) and len(val.split()) > 1
                     ) / len(sample_values)
                     if text_ratio > 0.3:  # 30% of values are multi-word
                         text_columns.append(col)
         return text_columns
 
-    def _extract_sentiment_features(self, text_data: pd.Series) -> Dict[str, np.ndarray]:
+    def _extract_sentiment_features(
+        self, text_data: pd.Series
+    ) -> Dict[str, np.ndarray]:
         """Extract sentiment features from text."""
         features = {
             "sentiment_polarity": np.zeros(len(text_data)),
@@ -177,11 +184,12 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         features = {
             "char_count": text_data.str.len().fillna(0).values,
             "word_count": text_data.str.split().str.len().fillna(0).values,
-            "sentence_count": text_data.str.count(r'[.!?]+').fillna(0).values,
+            "sentence_count": text_data.str.count(r"[.!?]+").fillna(0).values,
             "avg_word_length": (
-                text_data.str.split().str.len() / 
-                text_data.str.len().replace(0, 1)
-            ).fillna(0).values,
+                text_data.str.split().str.len() / text_data.str.len().replace(0, 1)
+            )
+            .fillna(0)
+            .values,
         }
         return features
 
@@ -206,10 +214,12 @@ class TextEmbeddingTransformer(BaseEstimator, TransformerMixin):
         self.spacy_model_obj = None
         self.is_fitted = False
 
-    def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> "TextEmbeddingTransformer":
+    def fit(
+        self, X: pd.DataFrame, y: Optional[pd.Series] = None
+    ) -> "TextEmbeddingTransformer":
         """Fit the text embedding transformer."""
         text_columns = self._get_text_columns(X)
-        
+
         if not text_columns:
             logger.warning("No text columns found for embedding")
             return self
@@ -233,7 +243,9 @@ class TextEmbeddingTransformer(BaseEstimator, TransformerMixin):
                 self.use_spacy_embeddings = False
 
         self.is_fitted = True
-        logger.info(f"Text embedding transformer fitted on {len(text_columns)} text columns")
+        logger.info(
+            f"Text embedding transformer fitted on {len(text_columns)} text columns"
+        )
 
         return self
 
@@ -243,35 +255,39 @@ class TextEmbeddingTransformer(BaseEstimator, TransformerMixin):
             raise ValueError("TextEmbeddingTransformer must be fitted before transform")
 
         text_columns = self._get_text_columns(X)
-        
+
         if not text_columns:
             return X
 
         result = X.copy()
-        
+
         # Process each text column
         for col in text_columns:
             text_data = X[col].fillna("").astype(str)
-            
+
             # Generate sentence transformer embeddings
             if self.use_sentence_transformers and self.sentence_model is not None:
                 try:
                     embeddings = self.sentence_model.encode(text_data.tolist())
                     # Limit to max_features
                     if embeddings.shape[1] > self.max_features:
-                        embeddings = embeddings[:, :self.max_features]
-                    
+                        embeddings = embeddings[:, : self.max_features]
+
                     # Create DataFrame with embeddings
-                    embedding_cols = [f"{col}_embed_{i}" for i in range(embeddings.shape[1])]
+                    embedding_cols = [
+                        f"{col}_embed_{i}" for i in range(embeddings.shape[1])
+                    ]
                     embedding_df = pd.DataFrame(
-                        embeddings,
-                        columns=embedding_cols,
-                        index=X.index
+                        embeddings, columns=embedding_cols, index=X.index
                     )
                     result = pd.concat([result, embedding_df], axis=1)
-                    logger.info(f"Generated {embeddings.shape[1]} sentence transformer embeddings for {col}")
+                    logger.info(
+                        f"Generated {embeddings.shape[1]} sentence transformer embeddings for {col}"
+                    )
                 except Exception as e:
-                    logger.warning(f"Failed to generate sentence transformer embeddings: {e}")
+                    logger.warning(
+                        f"Failed to generate sentence transformer embeddings: {e}"
+                    )
 
             # Generate spaCy embeddings
             if self.use_spacy_embeddings and self.spacy_model_obj is not None:
@@ -281,25 +297,27 @@ class TextEmbeddingTransformer(BaseEstimator, TransformerMixin):
                         doc = self.spacy_model_obj(text)
                         # Use average of word embeddings
                         if doc.has_vector:
-                            spacy_embeddings.append(doc.vector[:self.max_features])
+                            spacy_embeddings.append(doc.vector[: self.max_features])
                         else:
                             spacy_embeddings.append(np.zeros(self.max_features))
-                    
+
                     spacy_embeddings = np.array(spacy_embeddings)
-                    spacy_cols = [f"{col}_spacy_{i}" for i in range(spacy_embeddings.shape[1])]
+                    spacy_cols = [
+                        f"{col}_spacy_{i}" for i in range(spacy_embeddings.shape[1])
+                    ]
                     spacy_df = pd.DataFrame(
-                        spacy_embeddings,
-                        columns=spacy_cols,
-                        index=X.index
+                        spacy_embeddings, columns=spacy_cols, index=X.index
                     )
                     result = pd.concat([result, spacy_df], axis=1)
-                    logger.info(f"Generated {spacy_embeddings.shape[1]} spaCy embeddings for {col}")
+                    logger.info(
+                        f"Generated {spacy_embeddings.shape[1]} spaCy embeddings for {col}"
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to generate spaCy embeddings: {e}")
 
         # Remove original text columns
         result = result.drop(columns=text_columns)
-        
+
         logger.info(f"Text embedding completed. New shape: {result.shape}")
         return result
 
@@ -313,7 +331,8 @@ class TextEmbeddingTransformer(BaseEstimator, TransformerMixin):
                 if len(sample_values) > 0:
                     # Check if values contain words (not just numbers or categories)
                     text_ratio = sum(
-                        1 for val in sample_values 
+                        1
+                        for val in sample_values
                         if isinstance(val, str) and len(val.split()) > 1
                     ) / len(sample_values)
                     if text_ratio > 0.3:  # 30% of values are multi-word
@@ -339,10 +358,12 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
         self.feature_names_ = []
         self.is_fitted = False
 
-    def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> "PolynomialFeatureGenerator":
+    def fit(
+        self, X: pd.DataFrame, y: Optional[pd.Series] = None
+    ) -> "PolynomialFeatureGenerator":
         """Fit the polynomial feature generator."""
         numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
-        
+
         if not numeric_columns:
             logger.warning("No numeric columns found for polynomial features")
             return self
@@ -350,7 +371,9 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
         # Limit features if too many
         if len(numeric_columns) > 10:  # Limit to prevent explosion
             numeric_columns = numeric_columns[:10]
-            logger.warning(f"Limited polynomial features to {len(numeric_columns)} columns")
+            logger.warning(
+                f"Limited polynomial features to {len(numeric_columns)} columns"
+            )
 
         self.poly_features = PolynomialFeatures(
             degree=self.degree,
@@ -364,27 +387,33 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
 
         # Generate feature names
         self.feature_names_ = self.poly_features.get_feature_names_out(numeric_columns)
-        
+
         # Limit features if too many
         if len(self.feature_names_) > self.max_features:
             # Keep most important features (simple heuristic)
             feature_importance = np.var(X_numeric, axis=0)
-            top_indices = np.argsort(feature_importance)[-self.max_features:]
+            top_indices = np.argsort(feature_importance)[-self.max_features :]
             self.feature_names_ = [self.feature_names_[i] for i in top_indices]
-            logger.warning(f"Limited polynomial features to {len(self.feature_names_)} features")
+            logger.warning(
+                f"Limited polynomial features to {len(self.feature_names_)} features"
+            )
 
         self.is_fitted = True
-        logger.info(f"Polynomial feature generator fitted with {len(self.feature_names_)} features")
+        logger.info(
+            f"Polynomial feature generator fitted with {len(self.feature_names_)} features"
+        )
 
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Transform data with polynomial features."""
         if not self.is_fitted:
-            raise ValueError("PolynomialFeatureGenerator must be fitted before transform")
+            raise ValueError(
+                "PolynomialFeatureGenerator must be fitted before transform"
+            )
 
         numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
-        
+
         if not numeric_columns:
             return X
 
@@ -400,7 +429,7 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
         poly_df = pd.DataFrame(
             poly_features,
             columns=self.poly_features.get_feature_names_out(numeric_columns),
-            index=X.index
+            index=X.index,
         )
 
         # Limit to selected features
@@ -409,7 +438,7 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
 
         # Combine with original data
         result = pd.concat([X, poly_df], axis=1)
-        
+
         logger.info(f"Polynomial features generated. New shape: {result.shape}")
         return result
 
@@ -433,10 +462,12 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
         self.outlier_indices_ = set()
         self.is_fitted = False
 
-    def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> "AdvancedOutlierDetector":
+    def fit(
+        self, X: pd.DataFrame, y: Optional[pd.Series] = None
+    ) -> "AdvancedOutlierDetector":
         """Fit the outlier detector."""
         numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
-        
+
         if not numeric_columns:
             logger.warning("No numeric columns found for outlier detection")
             return self
@@ -444,15 +475,15 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
         # Initialize outlier detector
         if self.method == "isolation_forest":
             from sklearn.ensemble import IsolationForest
+
             self.outlier_detector = IsolationForest(
-                contamination=self.contamination,
-                random_state=42
+                contamination=self.contamination, random_state=42
             )
         elif self.method == "local_outlier_factor":
             from sklearn.neighbors import LocalOutlierFactor
+
             self.outlier_detector = LocalOutlierFactor(
-                contamination=self.contamination,
-                novelty=True
+                contamination=self.contamination, novelty=True
             )
         else:
             raise ValueError(f"Unknown outlier detection method: {self.method}")
@@ -468,7 +499,9 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
             self.scaler.fit(X_numeric)
 
         self.is_fitted = True
-        logger.info(f"Advanced outlier detector fitted. Found {len(self.outlier_indices_)} outliers")
+        logger.info(
+            f"Advanced outlier detector fitted. Found {len(self.outlier_indices_)} outliers"
+        )
 
         return self
 
@@ -478,7 +511,7 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
             raise ValueError("AdvancedOutlierDetector must be fitted before transform")
 
         numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
-        
+
         if not numeric_columns:
             return X
 
@@ -534,19 +567,24 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
     def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> "FeatureSelector":
         """Fit the feature selector."""
         if y is None and self.method in ["mutual_info", "f_score"]:
-            logger.warning("Target required for mutual_info/f_score selection, using variance instead")
+            logger.warning(
+                "Target required for mutual_info/f_score selection, using variance instead"
+            )
             self.method = "variance"
 
         numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
-        
+
         if not numeric_columns:
             logger.warning("No numeric columns found for feature selection")
             return self
 
         if self.method == "mutual_info":
-            from sklearn.feature_selection import mutual_info_regression, mutual_info_classif
+            from sklearn.feature_selection import (
+                mutual_info_regression,
+                mutual_info_classif,
+            )
             from sklearn.preprocessing import LabelEncoder
-            
+
             # Encode target if categorical
             if y.dtype == "object":
                 le = LabelEncoder()
@@ -561,13 +599,13 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
                 scores = mutual_info_regression(X[numeric_columns], y_encoded)
 
             # Select top k features
-            top_indices = np.argsort(scores)[-self.k:]
+            top_indices = np.argsort(scores)[-self.k :]
             self.selected_features_ = [numeric_columns[i] for i in top_indices]
 
         elif self.method == "f_score":
             from sklearn.feature_selection import f_classif, f_regression
             from sklearn.preprocessing import LabelEncoder
-            
+
             # Encode target if categorical
             if y.dtype == "object":
                 le = LabelEncoder()
@@ -582,16 +620,17 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
                 scores, _ = f_regression(X[numeric_columns], y_encoded)
 
             # Select top k features
-            top_indices = np.argsort(scores)[-self.k:]
+            top_indices = np.argsort(scores)[-self.k :]
             self.selected_features_ = [numeric_columns[i] for i in top_indices]
 
         elif self.method == "variance":
             from sklearn.feature_selection import VarianceThreshold
-            
+
             selector = VarianceThreshold(threshold=self.variance_threshold)
             selector.fit(X[numeric_columns])
             self.selected_features_ = [
-                col for col, selected in zip(numeric_columns, selector.get_support())
+                col
+                for col, selected in zip(numeric_columns, selector.get_support())
                 if selected
             ]
 
@@ -601,22 +640,25 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
             upper_tri = corr_matrix.where(
                 np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
             )
-            
+
             to_drop = [
-                column for column in upper_tri.columns 
+                column
+                for column in upper_tri.columns
                 if any(upper_tri[column] > self.correlation_threshold)
             ]
-            
+
             self.selected_features_ = [
                 col for col in numeric_columns if col not in to_drop
             ]
 
         # Limit to k features if more than k selected
         if len(self.selected_features_) > self.k:
-            self.selected_features_ = self.selected_features_[:self.k]
+            self.selected_features_ = self.selected_features_[: self.k]
 
         self.is_fitted = True
-        logger.info(f"Feature selection completed. Selected {len(self.selected_features_)} features")
+        logger.info(
+            f"Feature selection completed. Selected {len(self.selected_features_)} features"
+        )
 
         return self
 
@@ -630,7 +672,7 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
 
         # Return only selected features
         result = X[self.selected_features_].copy()
-        
+
         logger.info(f"Feature selection applied. New shape: {result.shape}")
         return result
 
@@ -663,7 +705,7 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
         self.outlier_method = outlier_method
         self.feature_selection_method = feature_selection_method
         self.feature_selection_k = feature_selection_k
-        
+
         self.text_preprocessor = None
         self.text_embedder = None
         self.poly_generator = None
@@ -671,18 +713,24 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
         self.feature_selector = None
         self.is_fitted = False
 
-    def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> "AdvancedPreprocessingPipeline":
+    def fit(
+        self, X: pd.DataFrame, y: Optional[pd.Series] = None
+    ) -> "AdvancedPreprocessingPipeline":
         """Fit the advanced preprocessing pipeline."""
         logger.info("Starting advanced preprocessing pipeline fitting")
 
         # Text preprocessing
         if self.use_text_preprocessing:
-            self.text_preprocessor = TextPreprocessor(max_features=self.text_max_features)
+            self.text_preprocessor = TextPreprocessor(
+                max_features=self.text_max_features
+            )
             self.text_preprocessor.fit(X, y)
 
         # Text embeddings
         if self.use_text_embeddings:
-            self.text_embedder = TextEmbeddingTransformer(max_features=self.embedding_max_features)
+            self.text_embedder = TextEmbeddingTransformer(
+                max_features=self.embedding_max_features
+            )
             self.text_embedder.fit(X, y)
 
         # Polynomial features
@@ -698,8 +746,7 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
         # Feature selection
         if self.use_feature_selection:
             self.feature_selector = FeatureSelector(
-                method=self.feature_selection_method,
-                k=self.feature_selection_k
+                method=self.feature_selection_method, k=self.feature_selection_k
             )
             self.feature_selector.fit(X, y)
 
@@ -711,7 +758,9 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Transform data through advanced preprocessing pipeline."""
         if not self.is_fitted:
-            raise ValueError("AdvancedPreprocessingPipeline must be fitted before transform")
+            raise ValueError(
+                "AdvancedPreprocessingPipeline must be fitted before transform"
+            )
 
         result = X.copy()
 

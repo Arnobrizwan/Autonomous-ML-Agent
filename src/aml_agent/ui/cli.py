@@ -2,10 +2,12 @@
 Command-line interface for the Autonomous ML Agent.
 """
 
+import json
 import sys
 from pathlib import Path
 from typing import Optional
 
+import pandas as pd
 import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -184,13 +186,17 @@ def web():
     try:
         import subprocess
         import sys
-        
+
         console.print("[blue]Launching web UI...[/blue]")
-        subprocess.run([sys.executable, "-m", "streamlit", "run", 
-                       "src/aml_agent/ui/web.py"], check=True)
+        subprocess.run(
+            [sys.executable, "-m", "streamlit", "run", "src/aml_agent/ui/web.py"],
+            check=True,
+        )
     except Exception as e:
         console.print(f"[bold red]Error launching web UI: {str(e)}[/bold red]")
-        console.print("[yellow]Make sure streamlit is installed: pip install streamlit[/yellow]")
+        console.print(
+            "[yellow]Make sure streamlit is installed: pip install streamlit[/yellow]"
+        )
         sys.exit(1)
 
 
@@ -199,22 +205,22 @@ def monitor():
     """Show system monitoring."""
     try:
         from ..monitoring import health_checker, performance_monitor
-        
+
         # Health status
         health_status = health_checker.run_health_checks()
         console.print(f"[bold]System Status:[/bold] {health_status['status'].upper()}")
-        
+
         # Performance metrics
         metrics = performance_monitor.get_performance_summary()
         console.print(f"[bold]Uptime:[/bold] {metrics['uptime_seconds']:.1f} seconds")
         console.print(f"[bold]Active Requests:[/bold] {metrics['active_requests']}")
-        
+
         # Health check details
         console.print("\n[bold]Health Checks:[/bold]")
         for check_name, check_result in health_status["checks"].items():
             status_icon = "✅" if check_result["status"] == "healthy" else "❌"
             console.print(f"  {status_icon} {check_name}: {check_result['status']}")
-            
+
     except Exception as e:
         console.print(f"[bold red]Error: {str(e)}[/bold red]")
         sys.exit(1)
@@ -225,16 +231,20 @@ def security():
     """Manage security settings."""
     try:
         from ..security import security_manager
-        
+
         # Generate API key
         name = typer.prompt("API key name")
-        permissions = typer.prompt("Permissions (comma-separated)", default="read,predict")
+        permissions = typer.prompt(
+            "Permissions (comma-separated)", default="read,predict"
+        )
         permissions_list = [p.strip() for p in permissions.split(",")]
-        
+
         api_key = security_manager.generate_api_key(name, permissions_list)
         console.print(f"[green]Generated API key: {api_key}[/green]")
-        console.print("[yellow]Save this key securely - it won't be shown again![/yellow]")
-        
+        console.print(
+            "[yellow]Save this key securely - it won't be shown again![/yellow]"
+        )
+
     except Exception as e:
         console.print(f"[bold red]Error: {str(e)}[/bold red]")
         sys.exit(1)

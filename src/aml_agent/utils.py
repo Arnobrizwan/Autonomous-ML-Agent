@@ -382,38 +382,38 @@ def set_random_seed(seed: int) -> None:
 def load_data(file_path: Union[str, Path], **kwargs) -> pd.DataFrame:
     """
     Load data from various formats.
-    
+
     Args:
         file_path: Path to data file
         **kwargs: Additional arguments for pandas readers
-        
+
     Returns:
         Loaded DataFrame
     """
     file_path = Path(file_path)
-    
+
     if not file_path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
-    
+
     suffix = file_path.suffix.lower()
-    
+
     try:
-        if suffix == '.csv':
+        if suffix == ".csv":
             return pd.read_csv(file_path, **kwargs)
-        elif suffix == '.json':
+        elif suffix == ".json":
             return pd.read_json(file_path, **kwargs)
-        elif suffix == '.parquet':
+        elif suffix == ".parquet":
             return pd.read_parquet(file_path, **kwargs)
-        elif suffix in ['.xlsx', '.xls']:
+        elif suffix in [".xlsx", ".xls"]:
             return pd.read_excel(file_path, **kwargs)
-        elif suffix == '.feather':
+        elif suffix == ".feather":
             return pd.read_feather(file_path, **kwargs)
-        elif suffix == '.pickle':
+        elif suffix == ".pickle":
             return pd.read_pickle(file_path, **kwargs)
         else:
             # Try to infer format from content
             return _infer_and_load(file_path, **kwargs)
-            
+
     except Exception as e:
         logger.error(f"Failed to load {file_path}: {e}")
         raise
@@ -424,22 +424,25 @@ def _infer_and_load(file_path: Path, **kwargs) -> pd.DataFrame:
     try:
         # Try CSV first
         return pd.read_csv(file_path, **kwargs)
-    except:
+    except Exception:
         try:
             # Try JSON
             return pd.read_json(file_path, **kwargs)
-        except:
+        except Exception:
             try:
                 # Try Parquet
                 return pd.read_parquet(file_path, **kwargs)
-            except:
-                raise ValueError(f"Unable to load file {file_path}. Supported formats: CSV, JSON, Parquet, Excel, Feather, Pickle")
+            except Exception:
+                raise ValueError(
+                    f"Unable to load file {file_path}. "
+                    "Supported formats: CSV, JSON, Parquet, Excel, Feather, Pickle"
+                )
 
 
 def save_data(data: pd.DataFrame, file_path: Union[str, Path], **kwargs) -> None:
     """
     Save data to various formats.
-    
+
     Args:
         data: DataFrame to save
         file_path: Output file path
@@ -447,29 +450,29 @@ def save_data(data: pd.DataFrame, file_path: Union[str, Path], **kwargs) -> None
     """
     file_path = Path(file_path)
     suffix = file_path.suffix.lower()
-    
+
     # Create directory if it doesn't exist
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     try:
-        if suffix == '.csv':
+        if suffix == ".csv":
             data.to_csv(file_path, index=False, **kwargs)
-        elif suffix == '.json':
-            data.to_json(file_path, orient='records', **kwargs)
-        elif suffix == '.parquet':
+        elif suffix == ".json":
+            data.to_json(file_path, orient="records", **kwargs)
+        elif suffix == ".parquet":
             data.to_parquet(file_path, index=False, **kwargs)
-        elif suffix in ['.xlsx', '.xls']:
+        elif suffix in [".xlsx", ".xls"]:
             data.to_excel(file_path, index=False, **kwargs)
-        elif suffix == '.feather':
+        elif suffix == ".feather":
             data.to_feather(file_path, **kwargs)
-        elif suffix == '.pickle':
+        elif suffix == ".pickle":
             data.to_pickle(file_path, **kwargs)
         else:
             # Default to CSV
             data.to_csv(file_path, index=False, **kwargs)
-            
+
         logger.info(f"Data saved to {file_path}")
-        
+
     except Exception as e:
         logger.error(f"Failed to save {file_path}: {e}")
         raise

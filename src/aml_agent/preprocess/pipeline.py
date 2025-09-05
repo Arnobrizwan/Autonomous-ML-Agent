@@ -35,7 +35,11 @@ logger = get_logger()
 class PreprocessingPipeline:
     """Complete preprocessing pipeline with intelligent type detection and advanced feature engineering."""
 
-    def __init__(self, config: Optional[PreprocessingConfig] = None, use_advanced_features: bool = True):
+    def __init__(
+        self,
+        config: Optional[PreprocessingConfig] = None,
+        use_advanced_features: bool = True,
+    ):
         self.config = config or PreprocessingConfig()
         self.use_advanced_features = use_advanced_features
         self.pipeline = None
@@ -45,7 +49,7 @@ class PreprocessingPipeline:
         self.feature_names_ = []
         self.target_encoder = None
         self.is_fitted = False
-        
+
         # Advanced feature engineering components
         self.advanced_pipeline = None
         if self.use_advanced_features:
@@ -99,8 +103,10 @@ class PreprocessingPipeline:
         if self.advanced_pipeline is not None:
             logger.info("Applying advanced feature engineering...")
             X_advanced = self.advanced_pipeline.fit_transform(X, y)
-            logger.info(f"Advanced features generated. Shape: {X.shape} -> {X_advanced.shape}")
-            
+            logger.info(
+                f"Advanced features generated. Shape: {X.shape} -> {X_advanced.shape}"
+            )
+
             # Update feature names with advanced features
             self.feature_names_ = self._get_feature_names(X_advanced)
         else:
