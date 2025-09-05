@@ -2,10 +2,9 @@
 Pydantic schemas for the FastAPI service.
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
-import pandas as pd
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PredictionRequest(BaseModel):
@@ -38,8 +37,8 @@ class PredictionResponse(BaseModel):
     )
     model_type: Optional[str] = Field(None, description="Model type used")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "prediction": 1,
                 "confidence": 0.85,
@@ -47,6 +46,7 @@ class PredictionResponse(BaseModel):
                 "model_type": "random_forest",
             }
         }
+    )
 
 
 class BatchPredictionRequest(BaseModel):
@@ -57,8 +57,8 @@ class BatchPredictionRequest(BaseModel):
     )
     run_id: str = Field(..., description="Run ID of the trained model")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "data": [
                     {"feature_0": 1.5, "feature_1": 2.3, "feature_2": 0.8},
@@ -67,6 +67,7 @@ class BatchPredictionRequest(BaseModel):
                 "run_id": "run_20241201_143022_abc123",
             }
         }
+    )
 
 
 class BatchPredictionResponse(BaseModel):
@@ -84,8 +85,8 @@ class BatchPredictionResponse(BaseModel):
     model_type: Optional[str] = Field(None, description="Model type used")
     n_predictions: int = Field(..., description="Number of predictions made")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "predictions": [1, 0],
                 "confidences": [0.85, 0.92],
@@ -94,6 +95,7 @@ class BatchPredictionResponse(BaseModel):
                 "n_predictions": 2,
             }
         }
+    )
 
 
 class HealthResponse(BaseModel):
@@ -104,8 +106,8 @@ class HealthResponse(BaseModel):
     timestamp: str = Field(..., description="Current timestamp")
     run_id: Optional[str] = Field(None, description="Current run ID")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "healthy",
                 "version": "0.1.0",
@@ -113,6 +115,7 @@ class HealthResponse(BaseModel):
                 "run_id": "run_20241201_143022_abc123",
             }
         }
+    )
 
 
 class ModelInfoResponse(BaseModel):
@@ -127,8 +130,8 @@ class ModelInfoResponse(BaseModel):
         ..., description="Performance metrics"
     )
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "run_id": "run_20241201_143022_abc123",
                 "model_type": "random_forest",
@@ -143,6 +146,7 @@ class ModelInfoResponse(BaseModel):
                 },
             }
         }
+    )
 
 
 class ErrorResponse(BaseModel):
@@ -152,11 +156,12 @@ class ErrorResponse(BaseModel):
     detail: Optional[str] = Field(None, description="Error details")
     timestamp: str = Field(..., description="Error timestamp")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "error": "Model not found",
                 "detail": "Run ID 'invalid_run' does not exist",
                 "timestamp": "2024-12-01T14:30:22Z",
             }
         }
+    )

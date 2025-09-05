@@ -140,8 +140,12 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         logger.info(f"Text preprocessing completed. New shape: {result.shape}")
         return result
 
-    def _get_text_columns(self, X: pd.DataFrame) -> List[str]:
+    def _get_text_columns(self, X) -> List[str]:
         """Identify text columns in the DataFrame."""
+        if not hasattr(X, "columns"):
+            # If X is a numpy array, return empty list
+            return []
+
         text_columns = []
         for col in X.columns:
             if X[col].dtype == "object":
@@ -321,8 +325,12 @@ class TextEmbeddingTransformer(BaseEstimator, TransformerMixin):
         logger.info(f"Text embedding completed. New shape: {result.shape}")
         return result
 
-    def _get_text_columns(self, X: pd.DataFrame) -> List[str]:
+    def _get_text_columns(self, X) -> List[str]:
         """Identify text columns in the DataFrame."""
+        if not hasattr(X, "columns"):
+            # If X is a numpy array, return empty list
+            return []
+
         text_columns = []
         for col in X.columns:
             if X[col].dtype == "object":
@@ -362,7 +370,11 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
         self, X: pd.DataFrame, y: Optional[pd.Series] = None
     ) -> "PolynomialFeatureGenerator":
         """Fit the polynomial feature generator."""
-        numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
+        if hasattr(X, "select_dtypes"):
+            numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
+        else:
+            # If X is a numpy array, create string column names
+            numeric_columns = [f"feature_{i}" for i in range(X.shape[1])]
 
         if not numeric_columns:
             logger.warning("No numeric columns found for polynomial features")
@@ -382,7 +394,28 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
         )
 
         # Fit on numeric columns only
-        X_numeric = X[numeric_columns]
+        if hasattr(X, "iloc"):
+            # Use column names for DataFrame
+            X_numeric = X[numeric_columns]
+        else:
+            # For numpy arrays, use integer indices
+            numeric_indices = list(range(len(numeric_columns)))
+            X_numeric = X[:, numeric_indices]
+
+        # Handle NaN values before polynomial features
+        if hasattr(X_numeric, "isnull") and X_numeric.isnull().any().any():
+            from sklearn.impute import SimpleImputer
+
+            imputer = SimpleImputer(strategy="median")
+            if hasattr(X_numeric, "columns"):
+                X_numeric = pd.DataFrame(
+                    imputer.fit_transform(X_numeric),
+                    columns=X_numeric.columns,
+                    index=X_numeric.index,
+                )
+            else:
+                X_numeric = imputer.fit_transform(X_numeric)
+
         self.poly_features.fit(X_numeric)
 
         # Generate feature names
@@ -412,7 +445,11 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
                 "PolynomialFeatureGenerator must be fitted before transform"
             )
 
-        numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
+        if hasattr(X, "select_dtypes"):
+            numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
+        else:
+            # If X is a numpy array, create string column names
+            numeric_columns = [f"feature_{i}" for i in range(X.shape[1])]
 
         if not numeric_columns:
             return X
@@ -422,22 +459,54 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
             numeric_columns = numeric_columns[:10]
 
         # Generate polynomial features
-        X_numeric = X[numeric_columns]
+        if hasattr(X, "iloc"):
+            # Use column names for DataFrame
+            X_numeric = X[numeric_columns]
+        else:
+            # For numpy arrays, use integer indices
+            numeric_indices = list(range(len(numeric_columns)))
+            X_numeric = X[:, numeric_indices]
+
+        # Handle NaN values before polynomial features
+        if hasattr(X_numeric, "isnull") and X_numeric.isnull().any().any():
+            from sklearn.impute import SimpleImputer
+
+            imputer = SimpleImputer(strategy="median")
+            if hasattr(X_numeric, "columns"):
+                X_numeric = pd.DataFrame(
+                    imputer.fit_transform(X_numeric),
+                    columns=X_numeric.columns,
+                    index=X_numeric.index,
+                )
+            else:
+                X_numeric = imputer.fit_transform(X_numeric)
+
         poly_features = self.poly_features.transform(X_numeric)
 
         # Create DataFrame with polynomial features
-        poly_df = pd.DataFrame(
-            poly_features,
-            columns=self.poly_features.get_feature_names_out(numeric_columns),
-            index=X.index,
-        )
+        if hasattr(X, "index"):
+            poly_df = pd.DataFrame(
+                poly_features,
+                columns=self.poly_features.get_feature_names_out(numeric_columns),
+                index=X.index,
+            )
+        else:
+            poly_df = pd.DataFrame(
+                poly_features,
+                columns=self.poly_features.get_feature_names_out(numeric_columns),
+            )
 
         # Limit to selected features
         available_features = [f for f in self.feature_names_ if f in poly_df.columns]
         poly_df = poly_df[available_features]
 
         # Combine with original data
-        result = pd.concat([X, poly_df], axis=1)
+        if hasattr(X, "iloc"):
+            result = pd.concat([X, poly_df], axis=1)
+        else:
+            # Convert numpy array to DataFrame first
+            X_df = pd.DataFrame(X, columns=[f"feature_{i}" for i in range(X.shape[1])])
+            result = pd.concat([X_df, poly_df], axis=1)
 
         logger.info(f"Polynomial features generated. New shape: {result.shape}")
         return result
@@ -466,7 +535,11 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
         self, X: pd.DataFrame, y: Optional[pd.Series] = None
     ) -> "AdvancedOutlierDetector":
         """Fit the outlier detector."""
-        numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
+        if hasattr(X, "select_dtypes"):
+            numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
+        else:
+            # If X is a numpy array, create string column names
+            numeric_columns = [f"feature_{i}" for i in range(X.shape[1])]
 
         if not numeric_columns:
             logger.warning("No numeric columns found for outlier detection")
@@ -489,7 +562,13 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
             raise ValueError(f"Unknown outlier detection method: {self.method}")
 
         # Fit detector
-        X_numeric = X[numeric_columns]
+        if hasattr(X, "iloc"):
+            # Use column names for DataFrame
+            X_numeric = X[numeric_columns]
+        else:
+            # For numpy arrays, use integer indices
+            numeric_indices = list(range(len(numeric_columns)))
+            X_numeric = X[:, numeric_indices]
         outlier_labels = self.outlier_detector.fit_predict(X_numeric)
         self.outlier_indices_ = set(np.where(outlier_labels == -1)[0])
 
@@ -510,13 +589,23 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
         if not self.is_fitted:
             raise ValueError("AdvancedOutlierDetector must be fitted before transform")
 
-        numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
+        if hasattr(X, "select_dtypes"):
+            numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
+        else:
+            # If X is a numpy array, create string column names
+            numeric_columns = [f"feature_{i}" for i in range(X.shape[1])]
 
         if not numeric_columns:
             return X
 
         result = X.copy()
-        X_numeric = X[numeric_columns]
+        if hasattr(X, "iloc"):
+            # Use column names for DataFrame
+            X_numeric = X[numeric_columns]
+        else:
+            # For numpy arrays, use integer indices
+            numeric_indices = list(range(len(numeric_columns)))
+            X_numeric = X[:, numeric_indices]
 
         if self.handling_method == "clip":
             # Clip outliers to percentiles
@@ -572,7 +661,11 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
             )
             self.method = "variance"
 
-        numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
+        if hasattr(X, "select_dtypes"):
+            numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
+        else:
+            # If X is a numpy array, create string column names
+            numeric_columns = [f"feature_{i}" for i in range(X.shape[1])]
 
         if not numeric_columns:
             logger.warning("No numeric columns found for feature selection")
@@ -594,9 +687,17 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
 
             # Determine if classification or regression
             if len(np.unique(y_encoded)) < 20:  # Classification
-                scores = mutual_info_classif(X[numeric_columns], y_encoded)
+                if hasattr(X, "iloc"):
+                    scores = mutual_info_classif(X[numeric_columns], y_encoded)
+                else:
+                    numeric_indices = list(range(len(numeric_columns)))
+                    scores = mutual_info_classif(X[:, numeric_indices], y_encoded)
             else:  # Regression
-                scores = mutual_info_regression(X[numeric_columns], y_encoded)
+                if hasattr(X, "iloc"):
+                    scores = mutual_info_regression(X[numeric_columns], y_encoded)
+                else:
+                    numeric_indices = list(range(len(numeric_columns)))
+                    scores = mutual_info_regression(X[:, numeric_indices], y_encoded)
 
             # Select top k features
             top_indices = np.argsort(scores)[-self.k :]
@@ -615,9 +716,17 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
 
             # Determine if classification or regression
             if len(np.unique(y_encoded)) < 20:  # Classification
-                scores, _ = f_classif(X[numeric_columns], y_encoded)
+                if hasattr(X, "iloc"):
+                    scores, _ = f_classif(X[numeric_columns], y_encoded)
+                else:
+                    numeric_indices = list(range(len(numeric_columns)))
+                    scores, _ = f_classif(X[:, numeric_indices], y_encoded)
             else:  # Regression
-                scores, _ = f_regression(X[numeric_columns], y_encoded)
+                if hasattr(X, "iloc"):
+                    scores, _ = f_regression(X[numeric_columns], y_encoded)
+                else:
+                    numeric_indices = list(range(len(numeric_columns)))
+                    scores, _ = f_regression(X[:, numeric_indices], y_encoded)
 
             # Select top k features
             top_indices = np.argsort(scores)[-self.k :]
@@ -627,7 +736,11 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
             from sklearn.feature_selection import VarianceThreshold
 
             selector = VarianceThreshold(threshold=self.variance_threshold)
-            selector.fit(X[numeric_columns])
+            if hasattr(X, "iloc"):
+                selector.fit(X[numeric_columns])
+            else:
+                numeric_indices = list(range(len(numeric_columns)))
+                selector.fit(X[:, numeric_indices])
             self.selected_features_ = [
                 col
                 for col, selected in zip(numeric_columns, selector.get_support())
@@ -636,7 +749,14 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
 
         elif self.method == "correlation":
             # Remove highly correlated features
-            corr_matrix = X[numeric_columns].corr().abs()
+            if hasattr(X, "iloc"):
+                corr_matrix = X[numeric_columns].corr().abs()
+            else:
+                # For numpy arrays, convert to DataFrame first
+                X_df = pd.DataFrame(
+                    X[:, : len(numeric_columns)], columns=numeric_columns
+                )
+                corr_matrix = X_df.corr().abs()
             upper_tri = corr_matrix.where(
                 np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
             )
@@ -765,24 +885,74 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
         result = X.copy()
 
         # Apply text preprocessing
-        if self.text_preprocessor is not None and self.use_text_preprocessing:
+        if (
+            self.text_preprocessor is not None
+            and self.use_text_preprocessing
+            and hasattr(self.text_preprocessor, "is_fitted")
+            and self.text_preprocessor.is_fitted
+        ):
             result = self.text_preprocessor.transform(result)
+            # Ensure unique column names
+            result.columns = [
+                f"{col}_{i}" if col in result.columns[:i] else col
+                for i, col in enumerate(result.columns)
+            ]
 
         # Apply text embeddings
-        if self.text_embedder is not None:
+        if (
+            self.text_embedder is not None
+            and self.use_text_embeddings
+            and hasattr(self.text_embedder, "is_fitted")
+            and self.text_embedder.is_fitted
+        ):
             result = self.text_embedder.transform(result)
+            # Ensure unique column names
+            result.columns = [
+                f"{col}_{i}" if col in result.columns[:i] else col
+                for i, col in enumerate(result.columns)
+            ]
 
         # Apply polynomial features
-        if self.poly_generator is not None:
+        if (
+            self.poly_generator is not None
+            and self.use_polynomial_features
+            and hasattr(self.poly_generator, "is_fitted")
+            and self.poly_generator.is_fitted
+        ):
             result = self.poly_generator.transform(result)
+            # Ensure unique column names
+            result.columns = [
+                f"{col}_{i}" if col in result.columns[:i] else col
+                for i, col in enumerate(result.columns)
+            ]
 
         # Apply outlier detection
-        if self.outlier_detector is not None:
+        if (
+            self.outlier_detector is not None
+            and self.use_advanced_outlier_detection
+            and hasattr(self.outlier_detector, "is_fitted")
+            and self.outlier_detector.is_fitted
+        ):
             result = self.outlier_detector.transform(result)
+            # Ensure unique column names
+            result.columns = [
+                f"{col}_{i}" if col in result.columns[:i] else col
+                for i, col in enumerate(result.columns)
+            ]
 
         # Apply feature selection
-        if self.feature_selector is not None:
+        if (
+            self.feature_selector is not None
+            and self.use_feature_selection
+            and hasattr(self.feature_selector, "is_fitted")
+            and self.feature_selector.is_fitted
+        ):
             result = self.feature_selector.transform(result)
+            # Ensure unique column names
+            result.columns = [
+                f"{col}_{i}" if col in result.columns[:i] else col
+                for i, col in enumerate(result.columns)
+            ]
 
         logger.info(f"Advanced preprocessing completed. Final shape: {result.shape}")
         return result

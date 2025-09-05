@@ -2,14 +2,12 @@
 Main agent loop for autonomous ML pipeline.
 """
 
-import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 
-from ..agent.budget import BudgetManager, create_budget_manager
+from ..agent.budget import create_budget_manager
 from ..agent.planner import LLMPlanner, create_planning_context
 from ..config import Config
 from ..export.model_card import ModelCardGenerator
@@ -17,14 +15,9 @@ from ..logging import get_logger
 from ..models import EnsembleBuilder, ModelTrainer
 from ..preprocess import PreprocessingPipeline
 from ..types import (
-    BudgetClock,
     LeaderboardEntry,
-    LLMConfig,
-    MetricType,
-    ModelType,
     RunMetadata,
     TaskType,
-    TrialResult,
 )
 from ..ui.leaderboard import Leaderboard
 from ..utils import (
@@ -324,9 +317,7 @@ class AgentLoop:
         elif self.trial_results:
             # Save best single model
             best_result = max(self.trial_results, key=lambda x: x.score)
-            trial_result = self.trainer.train_model(
-                best_result.model_type, X, y, best_result.params
-            )
+            self.trainer.train_model(best_result.model_type, X, y, best_result.params)
             # Extract the actual model from the trial result
             from ..models.registries import get_model_factory
 

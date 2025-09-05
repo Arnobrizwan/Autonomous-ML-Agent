@@ -2,7 +2,6 @@
 Configuration management for the Autonomous ML Agent.
 """
 
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -12,13 +11,11 @@ from pydantic_settings import BaseSettings
 
 from .types import (
     EncodingMethod,
-    EnsembleConfig,
     ImputationMethod,
     LLMConfig,
     MetricType,
     ModelConfig,
     OutlierMethod,
-    PreprocessingConfig,
     SearchStrategy,
     TaskType,
 )

@@ -2,24 +2,15 @@
 Main preprocessing pipeline for the Autonomous ML Agent.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import LabelEncoder
 
 from ..logging import get_logger
-from ..types import PreprocessingConfig, TaskType
-from .advanced_transformers import (
-    AdvancedOutlierDetector,
-    AdvancedPreprocessingPipeline,
-    FeatureSelector,
-    PolynomialFeatureGenerator,
-    TextEmbeddingTransformer,
-    TextPreprocessor,
-)
+from ..types import PreprocessingConfig
 from .detectors import MissingValueDetector, OutlierDetector, TypeDetector
 from .transformers import (
     CategoricalEncoder,
@@ -53,19 +44,9 @@ class PreprocessingPipeline:
         # Advanced feature engineering components
         self.advanced_pipeline = None
         if self.use_advanced_features:
-            self.advanced_pipeline = AdvancedPreprocessingPipeline(
-                use_text_preprocessing=True,
-                use_text_embeddings=True,
-                use_polynomial_features=True,
-                use_advanced_outlier_detection=True,
-                use_feature_selection=True,
-                text_max_features=1000,
-                embedding_max_features=384,
-                poly_degree=2,
-                outlier_method="isolation_forest",
-                feature_selection_method="mutual_info",
-                feature_selection_k=20,
-            )
+            # Advanced features temporarily disabled due to feature name mismatch issues
+            # TODO: Fix feature name handling in advanced transformers
+            self.advanced_pipeline = None
 
     def fit(
         self, X: pd.DataFrame, y: Optional[pd.Series] = None
@@ -102,8 +83,9 @@ class PreprocessingPipeline:
         # Apply advanced feature engineering if enabled
         if self.advanced_pipeline is not None:
             logger.info("Applying advanced feature engineering...")
-            # Apply advanced features to the original data (before preprocessing)
-            X_advanced = self.advanced_pipeline.fit_transform(X, y)
+            # Apply advanced features to the preprocessed data
+            X_preprocessed = self.pipeline.transform(X)
+            X_advanced = self.advanced_pipeline.fit_transform(X_preprocessed, y)
             logger.info(
                 f"Advanced features generated. Shape: {X.shape} -> {X_advanced.shape}"
             )

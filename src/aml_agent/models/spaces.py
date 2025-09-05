@@ -28,7 +28,7 @@ class SearchSpaceGenerator:
             "C": (0.001, 1000, "log"),
             "penalty": ["l1", "l2", "elasticnet"],
             "solver": ["liblinear", "saga"],
-            "l1_ratio": (0.0, 1.0, "uniform"),  # Only used with elasticnet
+            # l1_ratio only used with elasticnet penalty
         }
 
         # Linear Regression

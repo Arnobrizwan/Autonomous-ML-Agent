@@ -6,8 +6,8 @@ import signal
 import threading
 import time
 from contextlib import contextmanager
-from datetime import datetime, timedelta
-from typing import Any, Callable, Optional
+from datetime import datetime
+from typing import Any, Callable
 
 from ..logging import get_logger
 from ..types import BudgetClock
