@@ -1,0 +1,95 @@
+# Default configuration for Autonomous ML Agent
+data_path: "data/sample.csv"
+target: null                    # Auto-detect if null (last column if categorical/regression sensible)
+task_type: "auto"              # "auto" | "classification" | "regression"
+time_budget_seconds: 900       # Maximum runtime in seconds
+max_trials: 60                 # Maximum hyperparameter optimization trials
+cv_folds: 5                    # Cross-validation folds
+metric: "auto"                 # Auto-select based on task type
+search_strategy: "bayes"       # "random" | "bayes"
+enable_ensembling: true        # Enable model ensembling
+top_k_for_ensemble: 3          # Number of top models to ensemble
+random_seed: 42                # Reproducibility seed
+use_mlflow: false              # Enable MLflow tracking (requires mlflow package)
+
+# Preprocessing settings
+preprocessing:
+  handle_missing: true
+  impute_numeric: "median"     # "median" | "mean" | "mode"
+  impute_categorical: "most_frequent"
+  encode_categorical: "onehot" # "onehot" | "target" | "ordinal"
+  scale_features: true
+  handle_outliers: true
+  outlier_method: "iqr"        # "iqr" | "zscore" | "isolation_forest"
+  datetime_expansion: true     # Expand datetime features
+
+# Model settings
+models:
+  logistic_regression:
+    enabled: true
+    class_weight: "balanced"   # "balanced" | "none"
+  linear_regression:
+    enabled: true
+  random_forest:
+    enabled: true
+    class_weight: "balanced"
+  gradient_boosting:
+    enabled: true
+  knn:
+    enabled: true
+  mlp:
+    enabled: true
+    early_stopping: true
+    validation_fraction: 0.1
+
+# Hyperparameter search spaces (will be dynamically adjusted by LLM planner)
+search_spaces:
+  logistic_regression:
+    C: [0.001, 1000]
+    penalty: ["l1", "l2", "elasticnet"]
+    solver: ["liblinear", "saga"]
+  linear_regression:
+    fit_intercept: [true, false]
+  random_forest:
+    n_estimators: [10, 200]
+    max_depth: [3, 20]
+    min_samples_split: [2, 20]
+    min_samples_leaf: [1, 10]
+  gradient_boosting:
+    n_estimators: [10, 200]
+    learning_rate: [0.01, 0.3]
+    max_depth: [3, 10]
+  knn:
+    n_neighbors: [3, 20]
+    weights: ["uniform", "distance"]
+    metric: ["euclidean", "manhattan"]
+  mlp:
+    hidden_layer_sizes: [[50], [100], [50, 50], [100, 50]]
+    activation: ["relu", "tanh"]
+    learning_rate: [0.001, 0.1]
+    alpha: [0.0001, 0.1]
+
+# LLM settings (optional)
+llm:
+  enabled: false               # Enable LLM-guided planning
+  provider: "openai"          # "openai" | "gemini"
+  model: "gpt-3.5-turbo"      # Model to use
+  temperature: 0.7
+  max_tokens: 1000
+
+# Export settings
+export:
+  save_pipeline: true
+  save_artifacts: true
+  generate_model_card: true
+  generate_plots: true
+  format: "joblib"            # "joblib" | "pickle"
+
+# API settings
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1
+  reload: false
+  log_level: "info"
+

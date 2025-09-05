@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  aml-agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../data:/app/data
+      - ../artifacts:/app/artifacts
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=INFO
+    command: ["python", "-m", "uvicorn", "src.aml_agent.service.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    restart: unless-stopped
+
+  aml-agent-prod:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8001:8000"
+    volumes:
+      - ../data:/app/data
+      - ../artifacts:/app/artifacts
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=WARNING
+    command: ["python", "-m", "uvicorn", "src.aml_agent.service.app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+    restart: unless-stopped
+    profiles:
+      - production

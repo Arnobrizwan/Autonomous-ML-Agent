@@ -1,0 +1,20 @@
+data_path: "data/sample.csv"
+target: "label"
+task_type: "classification"
+time_budget_seconds: 60
+max_trials: 10
+cv_folds: 3
+metric: "f1"
+search_strategy: "random"
+enable_ensembling: false
+top_k_for_ensemble: 3
+random_seed: 42
+use_mlflow: false
+preprocessing:
+  handle_missing: false
+  impute_numeric: "mean"
+  impute_categorical: "most_frequent"
+  encode_categorical: "ordinal"
+  scale_features: false
+  handle_outliers: false
+  datetime_expansion: false
