@@ -27,41 +27,40 @@ class TestIntegration:
     def teardown_method(self):
         """Cleanup after each test."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_end_to_end_classification(self):
         """Test complete classification pipeline."""
         # Create sample data
         data = create_sample_data(
-            n_samples=200,
-            n_features=8,
-            task_type=TaskType.CLASSIFICATION
+            n_samples=200, n_features=8, task_type=TaskType.CLASSIFICATION
         )
-        
+
         X = data.drop(columns=["target"])
         y = data["target"]
-        
+
         # Create config
         config = create_default_config()
         config.time_budget_seconds = 60
         config.max_trials = 10
         config.artifacts_dir = str(self.artifacts_dir)
         config.llm.enabled = False  # Disable LLM for faster testing
-        
+
         # Run pipeline
         results = run_autonomous_ml(config, X, y)
-        
+
         # Verify results
         assert results["status"] == "completed"
         assert "best_score" in results
         assert "best_model" in results
         assert "total_trials" in results
         assert results["total_trials"] > 0
-        
+
         # Verify artifacts
         assert Path(results["artifacts_dir"]).exists()
         artifacts_path = Path(results["artifacts_dir"])
-        
+
         # Check for model files
         assert (artifacts_path / "model.joblib").exists()
         assert (artifacts_path / "preprocessor.joblib").exists()
@@ -72,24 +71,22 @@ class TestIntegration:
         """Test complete regression pipeline."""
         # Create sample data
         data = create_sample_data(
-            n_samples=200,
-            n_features=8,
-            task_type=TaskType.REGRESSION
+            n_samples=200, n_features=8, task_type=TaskType.REGRESSION
         )
-        
+
         X = data.drop(columns=["target"])
         y = data["target"]
-        
+
         # Create config
         config = create_default_config()
         config.time_budget_seconds = 60
         config.max_trials = 10
         config.artifacts_dir = str(self.artifacts_dir)
         config.llm.enabled = False
-        
+
         # Run pipeline
         results = run_autonomous_ml(config, X, y)
-        
+
         # Verify results
         assert results["status"] == "completed"
         assert "best_score" in results
@@ -100,28 +97,26 @@ class TestIntegration:
         """Test pipeline with missing data."""
         # Create data with missing values
         data = create_sample_data(
-            n_samples=200,
-            n_features=8,
-            task_type=TaskType.CLASSIFICATION
+            n_samples=200, n_features=8, task_type=TaskType.CLASSIFICATION
         )
-        
+
         # Introduce missing values
         missing_indices = np.random.choice(data.index, size=20, replace=False)
         data.loc[missing_indices, data.columns[0]] = np.nan
-        
+
         X = data.drop(columns=["target"])
         y = data["target"]
-        
+
         # Create config
         config = create_default_config()
         config.time_budget_seconds = 60
         config.max_trials = 5
         config.artifacts_dir = str(self.artifacts_dir)
         config.llm.enabled = False
-        
+
         # Run pipeline
         results = run_autonomous_ml(config, X, y)
-        
+
         # Verify results
         assert results["status"] == "completed"
 
@@ -130,28 +125,30 @@ class TestIntegration:
         # Create data with categorical features
         np.random.seed(42)
         n_samples = 200
-        
-        data = pd.DataFrame({
-            "numeric_1": np.random.normal(0, 1, n_samples),
-            "numeric_2": np.random.normal(0, 1, n_samples),
-            "categorical_1": np.random.choice(["A", "B", "C"], n_samples),
-            "categorical_2": np.random.choice(["X", "Y", "Z"], n_samples),
-            "target": np.random.choice([0, 1], n_samples)
-        })
-        
+
+        data = pd.DataFrame(
+            {
+                "numeric_1": np.random.normal(0, 1, n_samples),
+                "numeric_2": np.random.normal(0, 1, n_samples),
+                "categorical_1": np.random.choice(["A", "B", "C"], n_samples),
+                "categorical_2": np.random.choice(["X", "Y", "Z"], n_samples),
+                "target": np.random.choice([0, 1], n_samples),
+            }
+        )
+
         X = data.drop(columns=["target"])
         y = data["target"]
-        
+
         # Create config
         config = create_default_config()
         config.time_budget_seconds = 60
         config.max_trials = 5
         config.artifacts_dir = str(self.artifacts_dir)
         config.llm.enabled = False
-        
+
         # Run pipeline
         results = run_autonomous_ml(config, X, y)
-        
+
         # Verify results
         assert results["status"] == "completed"
 
@@ -159,14 +156,12 @@ class TestIntegration:
         """Test ensemble model creation."""
         # Create sample data
         data = create_sample_data(
-            n_samples=200,
-            n_features=8,
-            task_type=TaskType.CLASSIFICATION
+            n_samples=200, n_features=8, task_type=TaskType.CLASSIFICATION
         )
-        
+
         X = data.drop(columns=["target"])
         y = data["target"]
-        
+
         # Create config with ensembling enabled
         config = create_default_config()
         config.time_budget_seconds = 60
@@ -174,13 +169,13 @@ class TestIntegration:
         config.artifacts_dir = str(self.artifacts_dir)
         config.enable_ensembling = True
         config.llm.enabled = False
-        
+
         # Run pipeline
         results = run_autonomous_ml(config, X, y)
-        
+
         # Verify results
         assert results["status"] == "completed"
-        
+
         # Check for ensemble model
         artifacts_path = Path(results["artifacts_dir"])
         ensemble_file = artifacts_path / "ensemble_model.joblib"
@@ -190,55 +185,51 @@ class TestIntegration:
         """Test model export and loading."""
         # Create sample data
         data = create_sample_data(
-            n_samples=100,
-            n_features=5,
-            task_type=TaskType.CLASSIFICATION
+            n_samples=100, n_features=5, task_type=TaskType.CLASSIFICATION
         )
-        
+
         X = data.drop(columns=["target"])
         y = data["target"]
-        
+
         # Create config
         config = create_default_config()
         config.time_budget_seconds = 30
         config.max_trials = 5
         config.artifacts_dir = str(self.artifacts_dir)
         config.llm.enabled = False
-        
+
         # Run pipeline
         results = run_autonomous_ml(config, X, y)
-        
+
         # Verify artifacts exist
         artifacts_path = Path(results["artifacts_dir"])
-        
+
         # Test loading model
         import joblib
+
         model = joblib.load(artifacts_path / "model.joblib")
         preprocessor = joblib.load(artifacts_path / "preprocessor.joblib")
-        
+
         # Test prediction
         X_processed = preprocessor.transform(X)
         predictions = model.predict(X_processed)
-        
+
         assert len(predictions) == len(X)
         assert all(pred in [0, 1] for pred in predictions)
 
     def test_error_handling(self):
         """Test error handling in pipeline."""
         # Create invalid data (all NaN)
-        X = pd.DataFrame({
-            "feature_1": [np.nan] * 100,
-            "feature_2": [np.nan] * 100
-        })
+        X = pd.DataFrame({"feature_1": [np.nan] * 100, "feature_2": [np.nan] * 100})
         y = pd.Series([0, 1] * 50)
-        
+
         # Create config
         config = create_default_config()
         config.time_budget_seconds = 30
         config.max_trials = 5
         config.artifacts_dir = str(self.artifacts_dir)
         config.llm.enabled = False
-        
+
         # Run pipeline - should handle errors gracefully
         try:
             results = run_autonomous_ml(config, X, y)
@@ -252,29 +243,28 @@ class TestIntegration:
         """Test pipeline performance under time constraints."""
         # Create sample data
         data = create_sample_data(
-            n_samples=500,
-            n_features=10,
-            task_type=TaskType.CLASSIFICATION
+            n_samples=500, n_features=10, task_type=TaskType.CLASSIFICATION
         )
-        
+
         X = data.drop(columns=["target"])
         y = data["target"]
-        
+
         # Create config with very short time budget
         config = create_default_config()
         config.time_budget_seconds = 10  # Very short budget
         config.max_trials = 50  # High trial count
         config.artifacts_dir = str(self.artifacts_dir)
         config.llm.enabled = False
-        
+
         # Run pipeline
         import time
+
         start_time = time.time()
         results = run_autonomous_ml(config, X, y)
         end_time = time.time()
-        
+
         # Verify it respects time budget (with some tolerance)
         assert (end_time - start_time) < 15  # 5 second tolerance
-        
+
         # Should still produce results
         assert "status" in results
