@@ -34,7 +34,6 @@ class SearchSpaceGenerator:
         # Linear Regression
         self.spaces[ModelType.LINEAR_REGRESSION] = {
             "fit_intercept": [True, False],
-            "normalize": [True, False],  # Deprecated in newer sklearn versions
         }
 
         # Random Forest

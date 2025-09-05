@@ -175,13 +175,13 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
 
                 # Add encoded columns
                 for i, feature_name in enumerate(feature_names):
-                    X_transformed[feature_name] = encoded[:, i]
+                    X_transformed[feature_name] = encoded[:, i].astype(float)
 
                 # Drop original column
                 X_transformed = X_transformed.drop(columns=[col])
 
             elif self.method in [EncodingMethod.TARGET, EncodingMethod.ORDINAL]:
-                X_transformed[col] = encoder.transform(X[col])
+                X_transformed[col] = encoder.transform(X[col]).astype(float)
 
         return X_transformed
 

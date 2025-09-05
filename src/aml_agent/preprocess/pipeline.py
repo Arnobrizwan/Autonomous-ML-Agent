@@ -139,6 +139,17 @@ class PreprocessingPipeline:
 
         result = pd.DataFrame(X_transformed, columns=feature_names, index=X.index)
 
+        # Ensure all columns are numeric
+        for col in result.columns:
+            if result[col].dtype == "object":
+                try:
+                    result[col] = pd.to_numeric(result[col], errors="coerce")
+                except:
+                    pass
+
+        # Fill any remaining NaN values with 0
+        result = result.fillna(0)
+
         # Apply advanced feature engineering if enabled
         if self.advanced_pipeline is not None:
             logger.info("Applying advanced feature engineering to transformed data...")
@@ -214,9 +225,15 @@ class PreprocessingPipeline:
             transformers.append(("outlier_handling", outlier_handler, numeric_columns))
 
         # Create column transformer
-        self.pipeline = ColumnTransformer(
-            transformers=transformers, remainder="passthrough"
-        )
+        if transformers:
+            self.pipeline = ColumnTransformer(
+                transformers=transformers, remainder="passthrough"
+            )
+        else:
+            # If no transformers, create a simple passthrough
+            from sklearn.preprocessing import FunctionTransformer
+
+            self.pipeline = FunctionTransformer(lambda x: x)
 
     def _get_feature_names(self, X: pd.DataFrame) -> List[str]:
         """Get feature names after transformation."""

@@ -92,7 +92,7 @@ class AgentLoop:
 
             # Step 6: Export results
             logger.info("Step 6: Exporting results")
-            self._export_results(X_processed, y_processed, task_type)
+            self._export_results(X, y, X_processed, y_processed, task_type)
 
             # Update metadata
             self.metadata.end_time = datetime.now()
@@ -286,7 +286,14 @@ class AgentLoop:
         except Exception as e:
             logger.warning(f"Failed to create ensemble: {e}")
 
-    def _export_results(self, X: pd.DataFrame, y: pd.Series, task_type: TaskType):
+    def _export_results(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        X_processed: pd.DataFrame,
+        y_processed: pd.Series,
+        task_type: TaskType,
+    ):
         """Export pipeline results."""
         # Save metadata
         save_metadata(self.metadata.__dict__, self.artifacts_dir)
@@ -324,7 +331,7 @@ class AgentLoop:
             best_model = get_model_factory(
                 best_result.model_type, task_type, best_result.params
             )
-            best_model.fit(X, y)
+            best_model.fit(X_processed, y)
 
             import joblib
 

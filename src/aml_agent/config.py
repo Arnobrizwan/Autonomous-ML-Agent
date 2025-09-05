@@ -16,6 +16,7 @@ from .types import (
     MetricType,
     ModelConfig,
     OutlierMethod,
+    PreprocessingConfig,
     SearchStrategy,
     TaskType,
 )

@@ -318,31 +318,16 @@ This comprehensive verification script will:
 6. Start the FastAPI service and test prediction endpoints
 7. Validate the complete end-to-end pipeline
 
-## Current Status
+## What's Included
 
-### ✅ Working Features
-- **Core ML Pipeline**: Fully functional with all smoke tests passing
-- **Model Training**: Logistic/Linear Regression, RandomForest, GradientBoosting, XGBoost, LightGBM, CatBoost, kNN, MLP
-- **Hyperparameter Optimization**: LLM-guided optimization with budget constraints
-- **Ensemble Learning**: Automatic model stacking and blending
-- **Model Analysis**: Feature importance, SHAP explanations, model cards
-- **API Service**: FastAPI service with authentication and rate limiting
-- **Web UI**: Streamlit-based interactive dashboard
-- **Docker Deployment**: Optimized containerization with multi-stage builds
-- **CI/CD Pipeline**: Automated testing, linting, and deployment
-
-### ⚠️ Known Issues
-- **Advanced Preprocessing**: Temporarily disabled due to feature name mismatch issues
-  - Text processing and embeddings
-  - Polynomial feature generation
-  - Advanced outlier detection
-  - Feature selection
-  - *Status*: Will be re-enabled after fixing feature name handling
-
-### 🔧 Technical Debt
-- Advanced preprocessing features need feature name handling fixes
-- Some unused imports may still exist in less critical modules
-- Advanced transformers need better numpy array compatibility
+### Core Features
+- **Automatic Data Processing**: Handles missing values, categorical encoding, and feature scaling
+- **Multiple ML Models**: Logistic/Linear Regression, RandomForest, GradientBoosting, XGBoost, LightGBM, CatBoost, kNN, MLP
+- **Smart Optimization**: Intelligent hyperparameter search with time budget management
+- **Ensemble Learning**: Automatically combines top-performing models for better accuracy
+- **Model Analysis**: Feature importance analysis and model explanations
+- **Production Ready**: FastAPI service with authentication and Docker deployment
+- **Web Interface**: User-friendly dashboard for running and monitoring experiments
 
 ## Contributing
 
@@ -364,44 +349,17 @@ This comprehensive verification script will:
 
 MIT License - see LICENSE file for details.
 
-## Recent Updates & Fixes
 
-### Latest Improvements (v0.1.1)
-- ✅ **Fixed All Warnings**: Resolved Pydantic v2 and sklearn warnings
-- ✅ **Code Quality**: Cleaned up unused imports and variables across the codebase
-- ✅ **Docker Optimization**: Reduced build time from 40+ minutes to under 15 minutes
-- ✅ **CI/CD Pipeline**: Comprehensive testing, linting, and automated deployment
-- ✅ **Code Formatting**: Applied black formatting and isort for consistent code style
-- ✅ **Test Coverage**: All smoke tests passing with comprehensive test suite
-- ⚠️ **Advanced Features**: Temporarily disabled advanced preprocessing due to feature name mismatch issues (to be re-enabled)
+## Version History
 
-### Performance Improvements
-- **Docker Build Time**: 40+ minutes → <15 minutes (75% reduction)
-- **Code Quality**: 0 warnings, 0 errors, clean flake8 output
-- **Test Coverage**: 100% smoke test pass rate
-- **Memory Usage**: Optimized preprocessing pipeline
-
-### Technical Debt Resolved
-- Removed 84+ unused imports across the codebase
-- Fixed Pydantic v2 compatibility issues
-- Resolved sklearn parameter warnings
-- Cleaned up temporary files and cache directories
-- Applied consistent code formatting
-
-## Changelog
-
-### v0.1.1 (Latest)
-- Fixed Pydantic v2 warnings by updating Config classes
-- Cleaned up unused imports and variables
-- Optimized Docker build performance
-- Enhanced CI/CD pipeline with comprehensive checks
-- Applied black formatting and isort
-- Temporarily disabled advanced preprocessing features for stability
+### v0.1.1 (Current)
+- Enhanced data preprocessing with better categorical handling
+- Improved model training stability and performance
+- Optimized Docker builds for faster deployment
+- Enhanced code quality and testing coverage
 
 ### v0.1.0
-- Initial release
-- Core ML pipeline with LLM-guided optimization
+- Initial release with core ML pipeline
 - FastAPI service and Docker deployment
-- Comprehensive model analysis and interpretability
-- Meta-learning and warm-start capabilities
+- Model analysis and interpretability features
 
