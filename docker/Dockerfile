@@ -32,7 +32,7 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install Python dependencies with retry and timeout handling
-RUN pip install --upgrade pip && \
+RUN pip install --upgrade pip setuptools wheel && \
     pip install --no-cache-dir --timeout=100 --retries=3 -r requirements.txt
 
 # Copy application code
