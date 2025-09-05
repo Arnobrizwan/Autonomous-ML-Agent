@@ -80,15 +80,28 @@ predict:
 verify:
 	@bash scripts/verify_local.sh
 
-# Docker commands
+# Docker commands (optimized)
 docker-build:
-	docker build -f docker/Dockerfile -t aml-agent:latest .
+	@echo "Building optimized image with cache..."
+	@bash scripts/build.sh aml-agent:latest
+
+docker-build-no-cache:
+	@echo "Building without cache (clean build)..."
+	@bash scripts/build.sh aml-agent:latest --no-cache
 
 docker-build-prod:
-	docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile -t aml-agent:latest .
+	@echo "Building production image with optimizations..."
+	@bash scripts/build-prod.sh aml-agent:latest
+
+docker-build-fast:
+	@echo "Fast build using existing cache..."
+	@DOCKER_BUILDKIT=1 docker build -f docker/Dockerfile -t aml-agent:latest .
 
 docker-run:
 	docker run --rm -p 8000:8000 -v $(PWD)/data:/app/data -v $(PWD)/artifacts:/app/artifacts aml-agent:latest
+
+docker-run-dev:
+	docker run --rm -p 8000:8000 -v $(PWD)/data:/app/data -v $(PWD)/artifacts:/app/artifacts aml-agent:dev
 
 docker-compose-up:
 	docker-compose up -d
@@ -100,16 +113,34 @@ docker-compose-logs:
 	docker-compose logs -f
 
 docker-test:
-	docker run --rm aml-agent:latest python -c "import aml_agent; print('Import successful')"
-	docker run --rm aml-agent:latest python -c "from aml_agent.service.app import create_app; print('FastAPI app creation successful')"
+	@echo "Testing Docker image..."
+	@bash scripts/build.sh aml-agent:test
 
 docker-push:
+	@if [ -z "$(DOCKER_USERNAME)" ]; then echo "Please set DOCKER_USERNAME environment variable"; exit 1; fi
 	docker tag aml-agent:latest $(DOCKER_USERNAME)/aml-agent:latest
 	docker push $(DOCKER_USERNAME)/aml-agent:latest
 
 docker-clean:
+	@echo "Cleaning Docker system..."
 	docker system prune -f
 	docker volume prune -f
+	docker image prune -f
+
+docker-size:
+	@echo "Docker image sizes:"
+	@docker images aml-agent --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}"
+
+docker-layers:
+	@echo "Docker layer analysis:"
+	@docker history aml-agent:latest --format "table {{.Size}}\t{{.CreatedBy}}" | head -10
+
+docker-performance:
+	@echo "Docker build performance analysis:"
+	@echo "Image size: $$(docker images --format '{{.Size}}' aml-agent:latest)"
+	@echo "Layer count: $$(docker history aml-agent:latest --format '{{.CreatedBy}}' | wc -l)"
+	@echo "Largest layers:"
+	@docker history aml-agent:latest --format "table {{.Size}}\t{{.CreatedBy}}" | head -3
 
 # Development
 dev-setup: setup

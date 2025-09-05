@@ -82,6 +82,49 @@ class SearchSpaceGenerator:
             "batch_size": (32, 256, "int"),
         }
 
+        # Advanced ML Models
+        # XGBoost
+        self.spaces[ModelType.XGBOOST] = {
+            "n_estimators": (50, 500, "int"),
+            "max_depth": (3, 10, "int"),
+            "learning_rate": (0.01, 0.3, "log"),
+            "subsample": (0.6, 1.0, "uniform"),
+            "colsample_bytree": (0.6, 1.0, "uniform"),
+            "colsample_bylevel": (0.6, 1.0, "uniform"),
+            "reg_alpha": (0.0, 10.0, "log"),
+            "reg_lambda": (0.0, 10.0, "log"),
+            "min_child_weight": (1, 10, "int"),
+            "gamma": (0.0, 5.0, "uniform"),
+        }
+
+        # LightGBM
+        self.spaces[ModelType.LIGHTGBM] = {
+            "n_estimators": (50, 500, "int"),
+            "max_depth": (3, 10, "int"),
+            "learning_rate": (0.01, 0.3, "log"),
+            "subsample": (0.6, 1.0, "uniform"),
+            "colsample_bytree": (0.6, 1.0, "uniform"),
+            "reg_alpha": (0.0, 10.0, "log"),
+            "reg_lambda": (0.0, 10.0, "log"),
+            "min_child_samples": (5, 50, "int"),
+            "min_child_weight": (0.001, 10.0, "log"),
+            "num_leaves": (10, 100, "int"),
+        }
+
+        # CatBoost
+        self.spaces[ModelType.CATBOOST] = {
+            "iterations": (50, 500, "int"),
+            "depth": (3, 10, "int"),
+            "learning_rate": (0.01, 0.3, "log"),
+            "subsample": (0.6, 1.0, "uniform"),
+            "colsample_bylevel": (0.6, 1.0, "uniform"),
+            "reg_lambda": (0.0, 10.0, "log"),
+            "min_child_samples": (5, 50, "int"),
+            "l2_leaf_reg": (1, 10, "int"),
+            "bootstrap_type": ["Bayesian", "Bernoulli", "MVS"],
+            "bagging_temperature": (0.0, 1.0, "uniform"),
+        }
+
     def get_search_space(
         self, model_type: ModelType, custom_space: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
@@ -295,6 +338,29 @@ def validate_parameters(
             hidden_sizes = validated["hidden_layer_sizes"]
             if not isinstance(hidden_sizes, (tuple, list)):
                 validated["hidden_layer_sizes"] = (hidden_sizes,)
+
+    elif model_type == ModelType.XGBOOST:
+        # Validate XGBoost specific parameters
+        if "max_depth" in validated and "min_child_weight" in validated:
+            if validated["max_depth"] < 1:
+                validated["max_depth"] = 1
+            if validated["min_child_weight"] < 1:
+                validated["min_child_weight"] = 1
+
+    elif model_type == ModelType.LIGHTGBM:
+        # Validate LightGBM specific parameters
+        if "num_leaves" in validated and "max_depth" in validated:
+            # num_leaves should be <= 2^max_depth
+            max_leaves = 2 ** validated["max_depth"]
+            if validated["num_leaves"] > max_leaves:
+                validated["num_leaves"] = max_leaves
+
+    elif model_type == ModelType.CATBOOST:
+        # Validate CatBoost specific parameters
+        if "bootstrap_type" in validated and "bagging_temperature" in validated:
+            bootstrap_type = validated["bootstrap_type"]
+            if bootstrap_type == "Bayesian" and "bagging_temperature" not in validated:
+                validated["bagging_temperature"] = 1.0
 
     return validated
 

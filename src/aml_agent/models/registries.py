@@ -16,6 +16,25 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.neural_network import MLPClassifier, MLPRegressor
 
+# Advanced ML Models
+try:
+    import xgboost as xgb
+    XGBOOST_AVAILABLE = True
+except ImportError:
+    XGBOOST_AVAILABLE = False
+
+try:
+    import lightgbm as lgb
+    LIGHTGBM_AVAILABLE = True
+except ImportError:
+    LIGHTGBM_AVAILABLE = False
+
+try:
+    import catboost as cb
+    CATBOOST_AVAILABLE = True
+except ImportError:
+    CATBOOST_AVAILABLE = False
+
 from ..logging import get_logger
 from ..types import ModelType, TaskType
 
@@ -74,6 +93,37 @@ class ModelRegistry:
             "supports_class_weight": False,
             "supports_early_stopping": False,
         }
+
+        # Advanced ML Models
+        if XGBOOST_AVAILABLE:
+            self.models[ModelType.XGBOOST] = {
+                "classifier": xgb.XGBClassifier,
+                "regressor": xgb.XGBRegressor,
+                "supports_class_weight": True,
+                "supports_early_stopping": True,
+            }
+        else:
+            logger.warning("XGBoost not available, skipping registration")
+
+        if LIGHTGBM_AVAILABLE:
+            self.models[ModelType.LIGHTGBM] = {
+                "classifier": lgb.LGBMClassifier,
+                "regressor": lgb.LGBMRegressor,
+                "supports_class_weight": True,
+                "supports_early_stopping": True,
+            }
+        else:
+            logger.warning("LightGBM not available, skipping registration")
+
+        if CATBOOST_AVAILABLE:
+            self.models[ModelType.CATBOOST] = {
+                "classifier": cb.CatBoostClassifier,
+                "regressor": cb.CatBoostRegressor,
+                "supports_class_weight": True,
+                "supports_early_stopping": True,
+            }
+        else:
+            logger.warning("CatBoost not available, skipping registration")
 
     def get_model_class(
         self, model_type: ModelType, task_type: TaskType
@@ -161,6 +211,38 @@ def _get_default_params(model_type: ModelType, task_type: TaskType) -> Dict[str,
         ModelType.GRADIENT_BOOSTING: {"random_state": 42, "n_estimators": 100},
         ModelType.KNN: {"n_neighbors": 5},
         ModelType.MLP: {"random_state": 42, "max_iter": 1000},
+        
+        # Advanced ML Models
+        ModelType.XGBOOST: {
+            "random_state": 42,
+            "n_estimators": 100,
+            "max_depth": 6,
+            "learning_rate": 0.1,
+            "subsample": 0.8,
+            "colsample_bytree": 0.8,
+            "early_stopping_rounds": 10,
+            "eval_metric": "logloss" if task_type == TaskType.CLASSIFICATION else "rmse",
+        },
+        ModelType.LIGHTGBM: {
+            "random_state": 42,
+            "n_estimators": 100,
+            "max_depth": 6,
+            "learning_rate": 0.1,
+            "subsample": 0.8,
+            "colsample_bytree": 0.8,
+            "early_stopping_rounds": 10,
+            "verbose": -1,
+        },
+        ModelType.CATBOOST: {
+            "random_state": 42,
+            "iterations": 100,
+            "depth": 6,
+            "learning_rate": 0.1,
+            "subsample": 0.8,
+            "colsample_bylevel": 0.8,
+            "early_stopping_rounds": 10,
+            "verbose": False,
+        },
     }
 
     return defaults.get(model_type, {})
@@ -235,6 +317,11 @@ def get_model_complexity(model_type: ModelType) -> str:
         ModelType.RANDOM_FOREST: "medium",
         ModelType.GRADIENT_BOOSTING: "high",
         ModelType.MLP: "high",
+        
+        # Advanced ML Models
+        ModelType.XGBOOST: "high",
+        ModelType.LIGHTGBM: "high",
+        ModelType.CATBOOST: "high",
     }
     return complexity_map.get(model_type, "medium")
 

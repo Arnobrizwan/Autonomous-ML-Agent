@@ -148,13 +148,127 @@ The agent learns from previous runs to improve future performance:
 
 ### Docker
 ```bash
-# Build and run
-docker build -f docker/Dockerfile -t aml-agent .
+# Build and run (optimized)
+make docker-build
+make docker-run
+
+# Or with docker-compose
 docker-compose up
 
 # Or with custom config
 docker run -p 8000:8000 -v $(pwd)/data:/app/data aml-agent
 ```
+
+### Docker Performance Optimizations
+
+The Docker build has been optimized for **maximum speed and reliability**:
+
+- **Single-stage build** for simplicity and speed
+- **Layer caching optimization** with requirements.txt copied first
+- **Network resilience** with retry and timeout handling
+- **Minimal dependencies** to reduce image size
+- **BuildKit enabled** for parallel builds
+- **GitHub Actions caching** for CI/CD speed
+
+### Build Performance
+
+| Build Type | Expected Time | Cache Strategy |
+|------------|---------------|----------------|
+| First Build | 8-12 minutes | No cache |
+| Cached Build | 2-4 minutes | Layer caching |
+| CI/CD Build | 3-6 minutes | GitHub Actions cache |
+
+### Docker Commands
+
+| Command | Description | Performance |
+|---------|-------------|-------------|
+| `make docker-build` | Build with cache optimization | ⚡ Fast |
+| `make docker-build-no-cache` | Clean build without cache | 🐌 Slow |
+| `make docker-build-fast` | Quick build using existing cache | ⚡⚡ Very Fast |
+| `make docker-run` | Run container | ⚡ Fast |
+| `make docker-test` | Test Docker image | ⚡ Fast |
+| `make docker-performance` | Analyze build performance | 📊 Metrics |
+
+## 🌐 Web Interface
+
+### Streamlit Web UI
+
+Launch the interactive web interface:
+
+```bash
+# Launch web UI
+aml web
+
+# Or directly with streamlit
+streamlit run src/aml_agent/ui/web.py
+```
+
+**Features:**
+- 📊 **Dashboard**: Overview of runs and performance
+- 🚀 **Pipeline Runner**: Interactive pipeline execution
+- 🏆 **Model Leaderboard**: Visual performance comparison
+- 📋 **Model Cards**: Detailed model documentation
+- 📊 **Monitoring**: Real-time system health and metrics
+- ⚙️ **Settings**: Configuration management
+
+## 🔒 Security Features
+
+### API Authentication
+
+```bash
+# Generate API key
+aml security
+
+# Use API key in requests
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     http://localhost:8000/predict_one \
+     -d '{"features": {...}}'
+```
+
+**Security Features:**
+- 🔑 **API Key Management**: Secure authentication
+- 🚦 **Rate Limiting**: Request throttling
+- 🛡️ **Input Validation**: Data sanitization
+- 📊 **Access Logging**: Request monitoring
+
+## 📊 Monitoring & Metrics
+
+### System Monitoring
+
+```bash
+# Check system health
+aml monitor
+
+# View performance metrics
+aml monitor --detailed
+```
+
+**Monitoring Features:**
+- 💓 **Health Checks**: System status monitoring
+- 📈 **Performance Metrics**: Real-time performance tracking
+- 🚨 **Alerting**: Automated issue detection
+- 📊 **Dashboards**: Visual monitoring interface
+
+## 📁 Data Format Support
+
+### Supported Formats
+
+```python
+# Load data from various formats
+from aml_agent.utils import load_data, save_data
+
+# CSV, JSON, Parquet, Excel, Feather, Pickle
+data = load_data("data.parquet")
+save_data(data, "output.xlsx")
+```
+
+**Supported Formats:**
+- 📄 **CSV**: Comma-separated values
+- 📋 **JSON**: JavaScript Object Notation
+- 🗜️ **Parquet**: Columnar storage
+- 📊 **Excel**: .xlsx and .xls files
+- 🪶 **Feather**: Fast columnar format
+- 🥒 **Pickle**: Python serialization
 
 ### Production
 - FastAPI service with automatic schema validation

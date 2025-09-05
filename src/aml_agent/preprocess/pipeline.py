@@ -20,15 +20,24 @@ from .transformers import (
     ImputationTransformer,
     OutlierHandler,
 )
+from .advanced_transformers import (
+    AdvancedPreprocessingPipeline,
+    TextPreprocessor,
+    TextEmbeddingTransformer,
+    PolynomialFeatureGenerator,
+    AdvancedOutlierDetector,
+    FeatureSelector,
+)
 
 logger = get_logger()
 
 
 class PreprocessingPipeline:
-    """Complete preprocessing pipeline with intelligent type detection."""
+    """Complete preprocessing pipeline with intelligent type detection and advanced feature engineering."""
 
-    def __init__(self, config: Optional[PreprocessingConfig] = None):
+    def __init__(self, config: Optional[PreprocessingConfig] = None, use_advanced_features: bool = True):
         self.config = config or PreprocessingConfig()
+        self.use_advanced_features = use_advanced_features
         self.pipeline = None
         self.type_detector = TypeDetector()
         self.missing_detector = MissingValueDetector()
@@ -36,6 +45,23 @@ class PreprocessingPipeline:
         self.feature_names_ = []
         self.target_encoder = None
         self.is_fitted = False
+        
+        # Advanced feature engineering components
+        self.advanced_pipeline = None
+        if self.use_advanced_features:
+            self.advanced_pipeline = AdvancedPreprocessingPipeline(
+                use_text_preprocessing=True,
+                use_text_embeddings=True,
+                use_polynomial_features=True,
+                use_advanced_outlier_detection=True,
+                use_feature_selection=True,
+                text_max_features=1000,
+                embedding_max_features=384,
+                poly_degree=2,
+                outlier_method="isolation_forest",
+                feature_selection_method="mutual_info",
+                feature_selection_k=20,
+            )
 
     def fit(
         self, X: pd.DataFrame, y: Optional[pd.Series] = None
@@ -69,8 +95,17 @@ class PreprocessingPipeline:
         # Fit pipeline
         self.pipeline.fit(X, y)
 
-        # Store feature names
-        self.feature_names_ = self._get_feature_names(X)
+        # Apply advanced feature engineering if enabled
+        if self.advanced_pipeline is not None:
+            logger.info("Applying advanced feature engineering...")
+            X_advanced = self.advanced_pipeline.fit_transform(X, y)
+            logger.info(f"Advanced features generated. Shape: {X.shape} -> {X_advanced.shape}")
+            
+            # Update feature names with advanced features
+            self.feature_names_ = self._get_feature_names(X_advanced)
+        else:
+            # Store feature names
+            self.feature_names_ = self._get_feature_names(X)
 
         # Fit target encoder if needed
         encode_categorical = (
@@ -114,6 +149,12 @@ class PreprocessingPipeline:
             feature_names = self.feature_names_
 
         result = pd.DataFrame(X_transformed, columns=feature_names, index=X.index)
+
+        # Apply advanced feature engineering if enabled
+        if self.advanced_pipeline is not None:
+            logger.info("Applying advanced feature engineering to transformed data...")
+            result = self.advanced_pipeline.transform(result)
+            logger.info(f"Advanced features applied. Final shape: {result.shape}")
 
         logger.info(f"Transformed data shape: {result.shape}")
         return result
