@@ -70,7 +70,8 @@ class PreprocessingPipeline:
         self.feature_names_ = self._get_feature_names(X)
         
         # Fit target encoder if needed
-        if y is not None and self.config.encode_categorical.value == 'target':
+        encode_categorical = self.config.encode_categorical.value if hasattr(self.config.encode_categorical, 'value') else self.config.encode_categorical
+        if y is not None and encode_categorical == 'target':
             self.target_encoder = LabelEncoder()
             self.target_encoder.fit(y)
         
@@ -152,16 +153,9 @@ class PreprocessingPipeline:
         
         # Feature scaling
         if self.config.scale_features:
-            # Get all numeric columns after transformations
-            all_numeric = numeric_columns.copy()
-            if datetime_columns and self.config.datetime_expansion:
-                # Add expanded datetime columns
-                for col in datetime_columns:
-                    all_numeric.extend([f"{col}_year", f"{col}_month", f"{col}_day", f"{col}_dow", f"{col}_hour"])
-            
-            if all_numeric:
-                feature_scaler = FeatureScaler(columns=all_numeric)
-                transformers.append(('feature_scaling', feature_scaler, all_numeric))
+            # Apply scaling to all numeric columns (will be applied after imputation)
+            feature_scaler = FeatureScaler()
+            transformers.append(('feature_scaling', feature_scaler, numeric_columns))
         
         # Outlier handling
         if self.config.handle_outliers and numeric_columns:

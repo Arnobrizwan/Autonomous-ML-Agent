@@ -46,15 +46,17 @@ class ImputationTransformer(BaseEstimator, TransformerMixin):
         
         # Create imputers
         if self.numeric_columns:
+            numeric_strategy = self.numeric_strategy.value if hasattr(self.numeric_strategy, 'value') else self.numeric_strategy
             self.numeric_imputer = SimpleImputer(
-                strategy=self.numeric_strategy.value,
+                strategy=numeric_strategy,
                 keep_empty_features=True
             )
             self.numeric_imputer.fit(X[self.numeric_columns])
         
         if self.categorical_columns:
+            categorical_strategy = self.categorical_strategy.value if hasattr(self.categorical_strategy, 'value') else self.categorical_strategy
             self.categorical_imputer = SimpleImputer(
-                strategy=self.categorical_strategy.value,
+                strategy=categorical_strategy,
                 keep_empty_features=True
             )
             self.categorical_imputer.fit(X[self.categorical_columns])
@@ -236,6 +238,15 @@ class DateTimeExpander(BaseEstimator, TransformerMixin):
             X_transformed = X_transformed.drop(columns=[col])
         
         return X_transformed
+    
+    def get_feature_names_out(self, input_features=None):
+        """Get output feature names for transformation."""
+        if self.expanded_columns:
+            return self.expanded_columns
+        elif input_features is not None:
+            return list(input_features)
+        else:
+            return []
 
 
 class FeatureScaler(BaseEstimator, TransformerMixin):

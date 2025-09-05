@@ -341,7 +341,8 @@ def cross_validate_model(model: Any,
         n_jobs=-1
     )
     
-    # Calculate additional metrics
+    # Calculate additional metrics (fit model first)
+    model.fit(X, y)
     metrics = evaluate_model(model, X, y, task_type, metric)
     
     return cv_scores, metrics

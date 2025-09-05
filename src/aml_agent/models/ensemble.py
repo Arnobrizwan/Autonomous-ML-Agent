@@ -105,8 +105,7 @@ class EnsembleBuilder:
         if self.task_type == TaskType.CLASSIFICATION:
             ensemble = VotingClassifier(
                 estimators=estimators,
-                voting='soft' if self._supports_proba(top_models) else 'hard',
-                random_state=self.random_seed
+                voting='soft' if self._supports_proba(top_models) else 'hard'
             )
         else:
             ensemble = VotingRegressor(estimators=estimators)

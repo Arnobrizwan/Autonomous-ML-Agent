@@ -149,7 +149,6 @@ def _get_default_params(model_type: ModelType, task_type: TaskType) -> Dict[str,
             'max_iter': 1000
         },
         ModelType.LINEAR_REGRESSION: {
-            'random_state': 42
         },
         ModelType.RANDOM_FOREST: {
             'random_state': 42,

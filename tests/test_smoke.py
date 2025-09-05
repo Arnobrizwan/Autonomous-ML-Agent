@@ -76,7 +76,7 @@ class TestSmoke:
         y = data['target']
         
         # Train a simple model
-        trainer = ModelTrainer(task_type=TaskType.CLASSIFICATION, max_trials=2)
+        trainer = ModelTrainer(task_type=TaskType.CLASSIFICATION)
         
         # Test single model training
         result = trainer.train_model(
@@ -101,7 +101,7 @@ class TestSmoke:
         y = data['target']
         
         # Run optimization
-        trainer = ModelTrainer(task_type=TaskType.CLASSIFICATION, max_trials=3)
+        trainer = ModelTrainer(task_type=TaskType.CLASSIFICATION)
         results = trainer.optimize_hyperparameters(
             model_type=ModelType.LOGISTIC_REGRESSION,
             X=X,
@@ -380,7 +380,7 @@ class TestSmoke:
         config = create_default_config()
         config.time_budget_seconds = 30  # Short budget for testing
         config.max_trials = 5
-        config.data_path = str(self.temp_dir / "test_data.csv")
+        config.data_path = str(Path(self.temp_dir) / "test_data.csv")
         
         # Save data
         data.to_csv(config.data_path, index=False)

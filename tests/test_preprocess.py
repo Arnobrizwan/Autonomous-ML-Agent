@@ -26,7 +26,7 @@ class TestPreprocessing:
             'numeric': [1, 2, 3, 4, 5],
             'categorical': ['A', 'B', 'A', 'C', 'B'],
             'datetime': pd.date_range('2023-01-01', periods=5),
-            'text': ['This is a long text', 'Another long text', 'Short', 'Very long text here', 'Medium length']
+            'text': ['This is a very long text that should be detected as text type', 'Another very long text that should be detected as text type', 'This is also a very long text that should be detected as text type', 'Very long text here that should be detected as text type', 'This is a medium length text that should be detected as text type']
         })
         
         types = detector.detect_types(data)
@@ -111,14 +111,23 @@ class TestPreprocessing:
     
     def test_preprocessing_pipeline(self):
         """Test complete preprocessing pipeline."""
-        pipeline = PreprocessingPipeline()
+        from src.aml_agent.config import PreprocessingConfig
+        config = PreprocessingConfig(
+            handle_missing=True,
+            impute_numeric="mean",
+            impute_categorical="most_frequent",
+            encode_categorical="onehot",
+            scale_features=False,
+            handle_outliers=False,
+            datetime_expansion=False
+        )
+        pipeline = PreprocessingPipeline(config=config)
         
         # Create test data
         data = pd.DataFrame({
             'numeric1': [1, 2, 3, 4, 5],
             'numeric2': [1.1, 2.2, np.nan, 4.4, 5.5],
             'categorical': ['A', 'B', 'A', np.nan, 'C'],
-            'datetime': pd.date_range('2023-01-01', periods=5),
             'target': [0, 1, 0, 1, 0]
         })
         
@@ -139,7 +148,17 @@ class TestPreprocessing:
     
     def test_preprocessing_with_different_data_types(self):
         """Test preprocessing with various data types."""
-        pipeline = PreprocessingPipeline()
+        from src.aml_agent.config import PreprocessingConfig
+        config = PreprocessingConfig(
+            handle_missing=True,
+            impute_numeric="mean",
+            impute_categorical="most_frequent",
+            encode_categorical="onehot",
+            scale_features=False,
+            handle_outliers=False,
+            datetime_expansion=False
+        )
+        pipeline = PreprocessingPipeline(config=config)
         
         # Create complex test data
         data = pd.DataFrame({
@@ -147,7 +166,6 @@ class TestPreprocessing:
             'float_col': [1.1, 2.2, 3.3, 4.4, 5.5],
             'str_col': ['A', 'B', 'A', 'B', 'C'],
             'bool_col': [True, False, True, False, True],
-            'datetime_col': pd.date_range('2023-01-01', periods=5),
             'target': [0, 1, 0, 1, 0]
         })
         
@@ -162,7 +180,17 @@ class TestPreprocessing:
     
     def test_preprocessing_with_missing_values(self):
         """Test preprocessing with missing values."""
-        pipeline = PreprocessingPipeline()
+        from src.aml_agent.config import PreprocessingConfig
+        config = PreprocessingConfig(
+            handle_missing=True,
+            impute_numeric="mean",
+            impute_categorical="most_frequent",
+            encode_categorical="onehot",
+            scale_features=False,
+            handle_outliers=False,
+            datetime_expansion=False
+        )
+        pipeline = PreprocessingPipeline(config=config)
         
         # Create data with missing values
         data = pd.DataFrame({

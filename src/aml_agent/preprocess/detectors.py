@@ -157,6 +157,10 @@ class OutlierDetector:
         for col in numeric_columns:
             if col not in data.columns:
                 continue
+            
+            # Skip boolean columns as they don't make sense for outlier detection
+            if data[col].dtype == bool:
+                continue
                 
             series = data[col].dropna()
             if len(series) == 0:

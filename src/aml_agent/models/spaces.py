@@ -115,7 +115,7 @@ class SearchSpaceGenerator:
         
         for param, spec in space.items():
             if isinstance(spec, (list, tuple)):
-                if len(spec) == 3 and isinstance(spec[2], str):
+                if len(spec) == 3 and isinstance(spec[0], (int, float)) and isinstance(spec[1], (int, float)) and isinstance(spec[2], str):
                     # Range specification: (low, high, type)
                     low, high, param_type = spec
                     if param_type == 'int':
