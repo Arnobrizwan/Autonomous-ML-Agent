@@ -202,7 +202,7 @@ class MetricsCollector:
         """Record a timing metric."""
         self.timers[name].append(duration)
         if len(self.timers[name]) > self.max_history:
-            self.timers[name] = self.timers[name][-self.max_history:]
+            self.timers[name] = self.timers[name][-self.max_history :]
 
         self._add_metric(f"timer_{name}", duration)
 
