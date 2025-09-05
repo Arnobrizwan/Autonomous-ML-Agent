@@ -262,8 +262,6 @@ def create_optuna_study(
     Returns:
         Optuna study
     """
-    generator = SearchSpaceGenerator()
-
     # Create sampler based on strategy
     if strategy == SearchStrategy.BAYES:
         sampler = TPESampler(seed=42)

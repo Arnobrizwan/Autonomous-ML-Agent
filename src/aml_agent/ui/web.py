@@ -303,10 +303,6 @@ def show_model_cards():
         return
 
     # Select model card
-    card_selection = st.selectbox(
-        "Select Model Card", [f"{name} - {card.name}" for name, card in model_cards]
-    )
-
     selected_card = model_cards[
         st.selectbox("Select Model Card", range(len(model_cards)))
     ][1]
@@ -364,21 +360,21 @@ def show_settings():
     st.info("Configure API keys for LLM providers")
 
     # OpenAI API Key
-    openai_key = st.text_input("OpenAI API Key", type="password")
+    st.text_input("OpenAI API Key", type="password")
     if st.button("Save OpenAI Key"):
         st.success("OpenAI key saved!")
 
     # Gemini API Key
-    gemini_key = st.text_input("Gemini API Key", type="password")
+    st.text_input("Gemini API Key", type="password")
     if st.button("Save Gemini Key"):
         st.success("Gemini key saved!")
 
     st.subheader("System Settings")
 
     # Enable/disable features
-    enable_llm = st.checkbox("Enable LLM Guidance", True)
-    enable_monitoring = st.checkbox("Enable Monitoring", True)
-    enable_security = st.checkbox("Enable Security", True)
+    st.checkbox("Enable LLM Guidance", True)
+    st.checkbox("Enable Monitoring", True)
+    st.checkbox("Enable Security", True)
 
     if st.button("Save Settings"):
         st.success("Settings saved!")

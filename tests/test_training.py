@@ -2,16 +2,12 @@
 Tests for model training and evaluation.
 """
 
-from pathlib import Path
-
-import numpy as np
-import pandas as pd
 import pytest
 
 from src.aml_agent.models import ModelRegistry, ModelTrainer, get_model_factory
 from src.aml_agent.models.ensemble import EnsembleBuilder, create_ensemble
 from src.aml_agent.models.spaces import SearchSpaceGenerator, create_optuna_study
-from src.aml_agent.types import MetricType, ModelType, SearchStrategy, TaskType
+from src.aml_agent.types import ModelType, SearchStrategy, TaskType
 from src.aml_agent.utils import create_sample_data
 
 

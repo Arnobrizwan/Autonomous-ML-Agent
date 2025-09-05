@@ -4,7 +4,7 @@ Comprehensive tests for monitoring and metrics system.
 
 import json
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

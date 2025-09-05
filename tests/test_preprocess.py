@@ -2,8 +2,6 @@
 Tests for preprocessing functionality.
 """
 
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -16,7 +14,7 @@ from src.aml_agent.preprocess import (
     PreprocessingPipeline,
     TypeDetector,
 )
-from src.aml_agent.types import EncodingMethod, ImputationMethod, TaskType
+from src.aml_agent.types import EncodingMethod, ImputationMethod
 
 
 class TestPreprocessing:

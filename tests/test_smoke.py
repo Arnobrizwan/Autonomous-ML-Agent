@@ -6,8 +6,6 @@ import shutil
 import tempfile
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
 import pytest
 
 from src.aml_agent.agent.loop import run_autonomous_ml

@@ -179,7 +179,7 @@ class ModelExplainer:
         if instance_idx >= len(X):
             raise ValueError(f"Instance index {instance_idx} out of range")
 
-        instance = X.iloc[instance_idx : instance_idx + 1]
+        instance = X.iloc[instance_idx:instance_idx + 1]
         prediction = model.predict(instance)[0]
 
         explanation = {

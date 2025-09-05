@@ -233,7 +233,7 @@ class ArtifactExporter:
 
     def create_export_summary(self, exported_files: Dict[str, str]) -> str:
         """Create export summary."""
-        summary = f"# Export Summary\n\n"
+        summary = "# Export Summary\n\n"
         summary += f"Exported {len(exported_files)} files to {self.output_dir}:\n\n"
 
         for file_type, file_path in exported_files.items():

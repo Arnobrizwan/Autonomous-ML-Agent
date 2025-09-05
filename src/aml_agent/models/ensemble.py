@@ -16,7 +16,7 @@ from sklearn.ensemble import (
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from ..logging import get_logger
-from ..types import EnsembleConfig, TaskType, TrialResult
+from ..types import TaskType, TrialResult
 from .registries import get_model_factory
 
 logger = get_logger()

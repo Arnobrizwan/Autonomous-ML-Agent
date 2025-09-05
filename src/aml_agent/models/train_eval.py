@@ -301,9 +301,6 @@ def evaluate_model(
     Returns:
         Dictionary of metrics
     """
-    # Select metric
-    selected_metric = select_metric(task_type, MetricType(metric))
-
     # Make predictions
     y_pred = model.predict(X)
 

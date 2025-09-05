@@ -158,7 +158,7 @@ class PreprocessingPipeline:
             if result[col].dtype == "object":
                 try:
                     result[col] = pd.to_numeric(result[col], errors="coerce")
-                except:
+                except Exception:
                     pass
 
         # Fill any remaining NaN values with 0

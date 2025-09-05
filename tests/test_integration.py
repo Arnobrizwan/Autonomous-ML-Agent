@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from src.aml_agent.agent.loop import run_autonomous_ml
 from src.aml_agent.config import create_default_config
@@ -178,7 +177,6 @@ class TestIntegration:
 
         # Check for ensemble model
         artifacts_path = Path(results["artifacts_dir"])
-        ensemble_file = artifacts_path / "ensemble_model.joblib"
         # Note: Ensemble creation depends on having multiple successful models
 
     def test_model_export_and_loading(self):

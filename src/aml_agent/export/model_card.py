@@ -334,7 +334,8 @@ class ModelCardGenerator:
 Analyze this machine learning model performance and provide a concise summary:
 
 Task Type: {task_type.value}
-Dataset: {dataset_profile.n_rows if dataset_profile else 'Unknown'} rows, {dataset_profile.n_cols if dataset_profile else 'Unknown'} features
+Dataset: {dataset_profile.n_rows if dataset_profile else 'Unknown'} rows, \
+{dataset_profile.n_cols if dataset_profile else 'Unknown'} features
 Best Score: {performance_metrics.get('best_score', 0):.4f}
 CV Mean: {performance_metrics.get('cv_mean', 0):.4f} ± {performance_metrics.get('cv_std', 0):.4f}
 

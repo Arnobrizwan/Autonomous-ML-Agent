@@ -154,7 +154,6 @@ class LLMPlanner:
         }
 
         # Scale based on total budget
-        total_base_trials = sum(base_trials.get(model, 10) for model in models)
         scale_factor = min(1.0, total_budget / 300)  # Scale based on 5-minute budget
 
         budgets = {}

@@ -2,7 +2,7 @@
 Advanced preprocessing transformers for enhanced feature engineering.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -18,9 +18,7 @@ except ImportError:
     TEXTBLOB_AVAILABLE = False
 
 try:
-    import nltk
-    from nltk.corpus import stopwords
-    from nltk.tokenize import word_tokenize
+    import nltk  # noqa: F401
 
     NLTK_AVAILABLE = True
 except ImportError:
@@ -424,7 +422,7 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
         if len(self.feature_names_) > self.max_features:
             # Keep most important features (simple heuristic)
             feature_importance = np.var(X_numeric, axis=0)
-            top_indices = np.argsort(feature_importance)[-self.max_features :]
+            top_indices = np.argsort(feature_importance)[-self.max_features:]
             self.feature_names_ = [self.feature_names_[i] for i in top_indices]
             logger.warning(
                 f"Limited polynomial features to {len(self.feature_names_)} features"
@@ -699,7 +697,7 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
                     scores = mutual_info_regression(X[:, numeric_indices], y_encoded)
 
             # Select top k features
-            top_indices = np.argsort(scores)[-self.k :]
+            top_indices = np.argsort(scores)[-self.k:]
             self.selected_features_ = [numeric_columns[i] for i in top_indices]
 
         elif self.method == "f_score":
@@ -728,7 +726,7 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
                     scores, _ = f_regression(X[:, numeric_indices], y_encoded)
 
             # Select top k features
-            top_indices = np.argsort(scores)[-self.k :]
+            top_indices = np.argsort(scores)[-self.k:]
             self.selected_features_ = [numeric_columns[i] for i in top_indices]
 
         elif self.method == "variance":
