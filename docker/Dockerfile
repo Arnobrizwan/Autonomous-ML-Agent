@@ -29,10 +29,11 @@ RUN pip install --no-cache-dir --upgrade pip \
     fastapi==0.104.1 \
     uvicorn[standard]==0.24.0 \
     pydantic==2.5.0 \
-    typer==0.9.0 \
+    typer[all]==0.9.0 \
     rich==13.7.0 \
     pyyaml==6.0.1 \
-    joblib==1.3.2
+    joblib==1.3.2 \
+    click==8.1.7
 
 # Install application
 COPY pyproject.toml ./
