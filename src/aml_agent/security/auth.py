@@ -1,31 +1,43 @@
 """
-Authentication and authorization for the Autonomous ML Agent.
+Authentication and security utilities for the ML agent.
 """
 
+import hashlib
+import hmac
+import os
 import secrets
 import time
-from datetime import datetime
-from typing import Dict, List, Optional, Set
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Union
+
+import pandas as pd
 
 from ..logging import get_logger
 
 logger = get_logger()
 
 
-class APIKeyManager:
-    """Manage API keys for authentication."""
+class SecurityManager:
+    """Manage security and authentication for the ML agent."""
 
-    def __init__(self):
-        self.api_keys: Dict[str, Dict] = {}
-        self.key_permissions: Dict[str, Set[str]] = {}
+    def __init__(self, secret_key: Optional[str] = None):
+        self.secret_key = secret_key or os.getenv(
+            "AML_SECRET_KEY", self._generate_secret_key()
+        )
+        self.api_keys = {}  # In production, use a proper database
+        self.rate_limits = {}  # Simple rate limiting
 
-    def generate_api_key(self, name: str, permissions: List[str] = None) -> str:
+    def _generate_secret_key(self) -> str:
+        """Generate a secure secret key."""
+        return secrets.token_urlsafe(32)
+
+    def generate_api_key(self, user_id: str, permissions: List[str] = None) -> str:
         """
-        Generate a new API key.
+        Generate an API key for a user.
 
         Args:
-            name: Name/description for the key
-            permissions: List of permissions for the key
+            user_id: Unique user identifier
+            permissions: List of permissions for the API key
 
         Returns:
             Generated API key
@@ -33,62 +45,46 @@ class APIKeyManager:
         if permissions is None:
             permissions = ["read", "predict"]
 
-        # Generate secure random key
         api_key = secrets.token_urlsafe(32)
-
-        # Store key metadata
         self.api_keys[api_key] = {
-            "name": name,
-            "created_at": datetime.now(),
+            "user_id": user_id,
+            "permissions": permissions,
+            "created_at": datetime.now().isoformat(),
             "last_used": None,
-            "is_active": True,
-            "permissions": set(permissions),
+            "usage_count": 0,
         }
 
-        self.key_permissions[api_key] = set(permissions)
-
-        logger.info(f"Generated API key for {name}")
+        logger.info(f"API key generated for user {user_id}")
         return api_key
 
-    def validate_api_key(self, api_key: str) -> bool:
+    def validate_api_key(self, api_key: str, required_permission: str = "read") -> bool:
         """
-        Validate an API key.
+        Validate an API key and check permissions.
 
         Args:
             api_key: API key to validate
+            required_permission: Required permission level
 
         Returns:
-            True if valid, False otherwise
+            True if valid and authorized
         """
         if api_key not in self.api_keys:
             return False
 
         key_info = self.api_keys[api_key]
 
-        # Check if key is active
-        if not key_info["is_active"]:
+        # Check if key has required permission
+        if required_permission not in key_info["permissions"]:
+            logger.warning(
+                f"API key {api_key[:8]}... lacks permission {required_permission}"
+            )
             return False
 
-        # Update last used
-        key_info["last_used"] = datetime.now()
+        # Update usage info
+        key_info["last_used"] = datetime.now().isoformat()
+        key_info["usage_count"] += 1
 
         return True
-
-    def check_permission(self, api_key: str, permission: str) -> bool:
-        """
-        Check if API key has specific permission.
-
-        Args:
-            api_key: API key
-            permission: Permission to check
-
-        Returns:
-            True if has permission, False otherwise
-        """
-        if not self.validate_api_key(api_key):
-            return False
-
-        return permission in self.key_permissions.get(api_key, set())
 
     def revoke_api_key(self, api_key: str) -> bool:
         """
@@ -98,136 +94,257 @@ class APIKeyManager:
             api_key: API key to revoke
 
         Returns:
-            True if revoked, False if not found
+            True if successfully revoked
         """
         if api_key in self.api_keys:
-            self.api_keys[api_key]["is_active"] = False
-            logger.info(f"Revoked API key: {api_key[:8]}...")
+            del self.api_keys[api_key]
+            logger.info(f"API key {api_key[:8]}... revoked")
             return True
         return False
 
-    def list_api_keys(self) -> List[Dict]:
+    def check_rate_limit(
+        self, identifier: str, max_requests: int = 100, window_minutes: int = 60
+    ) -> bool:
         """
-        List all API keys (without the actual keys).
-
-        Returns:
-            List of key metadata
-        """
-        return [
-            {
-                "name": info["name"],
-                "created_at": info["created_at"],
-                "last_used": info["last_used"],
-                "is_active": info["is_active"],
-                "permissions": list(info["permissions"]),
-            }
-            for info in self.api_keys.values()
-        ]
-
-
-class RateLimiter:
-    """Rate limiting for API endpoints."""
-
-    def __init__(self, max_requests: int = 100, window_seconds: int = 3600):
-        self.max_requests = max_requests
-        self.window_seconds = window_seconds
-        self.requests: Dict[str, List[float]] = {}
-
-    def is_allowed(self, identifier: str) -> bool:
-        """
-        Check if request is allowed.
+        Check if a request is within rate limits.
 
         Args:
-            identifier: Unique identifier (IP, API key, etc.)
+            identifier: Unique identifier (IP, user_id, etc.)
+            max_requests: Maximum requests allowed
+            window_minutes: Time window in minutes
 
         Returns:
-            True if allowed, False if rate limited
+            True if within rate limits
         """
         now = time.time()
-        window_start = now - self.window_seconds
+        window_start = now - (window_minutes * 60)
 
-        # Clean old requests
-        if identifier in self.requests:
-            self.requests[identifier] = [
-                req_time
-                for req_time in self.requests[identifier]
-                if req_time > window_start
+        # Clean old entries
+        if identifier in self.rate_limits:
+            self.rate_limits[identifier] = [
+                timestamp
+                for timestamp in self.rate_limits[identifier]
+                if timestamp > window_start
             ]
         else:
-            self.requests[identifier] = []
+            self.rate_limits[identifier] = []
 
-        # Check if under limit
-        if len(self.requests[identifier]) >= self.max_requests:
+        # Check if within limits
+        if len(self.rate_limits[identifier]) >= max_requests:
+            logger.warning(f"Rate limit exceeded for {identifier}")
             return False
 
         # Add current request
-        self.requests[identifier].append(now)
+        self.rate_limits[identifier].append(now)
         return True
 
-    def get_remaining_requests(self, identifier: str) -> int:
-        """Get remaining requests for identifier."""
-        now = time.time()
-        window_start = now - self.window_seconds
-
-        if identifier in self.requests:
-            recent_requests = [
-                req_time
-                for req_time in self.requests[identifier]
-                if req_time > window_start
-            ]
-            return max(0, self.max_requests - len(recent_requests))
-
-        return self.max_requests
-
-
-class SecurityManager:
-    """Main security manager."""
-
-    def __init__(self):
-        self.api_key_manager = APIKeyManager()
-        self.rate_limiter = RateLimiter()
-        self.enabled = True
-
-    def authenticate_request(
-        self, api_key: Optional[str] = None, ip_address: Optional[str] = None
-    ) -> bool:
+    def validate_input_data(
+        self, data: Union[Dict, pd.DataFrame], expected_columns: List[str] = None
+    ) -> Dict[str, Any]:
         """
-        Authenticate a request.
+        Validate input data for security and correctness.
 
         Args:
-            api_key: API key if provided
-            ip_address: IP address for rate limiting
+            data: Input data to validate
+            expected_columns: Expected column names
 
         Returns:
-            True if authenticated, False otherwise
+            Validation result dictionary
         """
-        if not self.enabled:
-            return True
+        validation_result = {
+            "valid": True,
+            "errors": [],
+            "warnings": [],
+        }
 
-        # Check rate limiting
-        if ip_address and not self.rate_limiter.is_allowed(ip_address):
-            logger.warning(f"Rate limit exceeded for IP: {ip_address}")
-            return False
+        try:
+            # Convert to DataFrame if needed
+            if isinstance(data, dict):
+                df = pd.DataFrame([data])
+            else:
+                df = data.copy()
 
-        # Check API key if provided
-        if api_key and not self.api_key_manager.validate_api_key(api_key):
-            logger.warning(f"Invalid API key: {api_key[:8] if api_key else 'None'}...")
-            return False
+            # Check for malicious content
+            validation_result.update(self._check_malicious_content(df))
 
-        return True
+            # Check data types and ranges
+            validation_result.update(self._check_data_types(df))
 
-    def check_permission(self, api_key: str, permission: str) -> bool:
-        """Check if API key has permission."""
-        return self.api_key_manager.check_permission(api_key, permission)
+            # Check for expected columns
+            if expected_columns:
+                validation_result.update(
+                    self._check_expected_columns(df, expected_columns)
+                )
 
-    def generate_api_key(self, name: str, permissions: List[str] = None) -> str:
-        """Generate new API key."""
-        return self.api_key_manager.generate_api_key(name, permissions)
+            # Check for data leakage indicators
+            validation_result.update(self._check_data_leakage(df))
 
-    def revoke_api_key(self, api_key: str) -> bool:
-        """Revoke API key."""
-        return self.api_key_manager.revoke_api_key(api_key)
+        except Exception as e:
+            validation_result["valid"] = False
+            validation_result["errors"].append(f"Data validation error: {str(e)}")
 
+        return validation_result
 
-# Global security manager instance
-security_manager = SecurityManager()
+    def _check_malicious_content(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """Check for potentially malicious content in data."""
+        result = {"errors": [], "warnings": []}
+
+        # Check for SQL injection patterns
+        sql_patterns = ["'", '"', ";", "--", "/*", "*/", "xp_", "sp_"]
+        for col in df.select_dtypes(include=["object"]).columns:
+            for pattern in sql_patterns:
+                if (
+                    df[col]
+                    .astype(str)
+                    .str.contains(pattern, regex=False, na=False)
+                    .any()
+                ):
+                    result["warnings"].append(
+                        f"Potential SQL injection pattern in column {col}"
+                    )
+
+        # Check for script injection patterns
+        script_patterns = ["<script", "javascript:", "vbscript:", "onload=", "onerror="]
+        for col in df.select_dtypes(include=["object"]).columns:
+            for pattern in script_patterns:
+                if (
+                    df[col]
+                    .astype(str)
+                    .str.contains(pattern, case=False, regex=False, na=False)
+                    .any()
+                ):
+                    result["warnings"].append(
+                        f"Potential script injection pattern in column {col}"
+                    )
+
+        return result
+
+    def _check_data_types(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """Check data types and ranges."""
+        result = {"errors": [], "warnings": []}
+
+        for col in df.columns:
+            # Check for extremely large values
+            if df[col].dtype in ["int64", "float64"]:
+                if df[col].abs().max() > 1e10:
+                    result["warnings"].append(f"Very large values in column {col}")
+
+            # Check for suspicious string lengths
+            if df[col].dtype == "object":
+                max_length = df[col].astype(str).str.len().max()
+                if max_length > 10000:
+                    result["warnings"].append(
+                        f"Very long strings in column {col} (max: {max_length})"
+                    )
+
+        return result
+
+    def _check_expected_columns(
+        self, df: pd.DataFrame, expected_columns: List[str]
+    ) -> Dict[str, Any]:
+        """Check if data has expected columns."""
+        result = {"errors": [], "warnings": []}
+
+        missing_columns = set(expected_columns) - set(df.columns)
+        if missing_columns:
+            result["errors"].append(
+                f"Missing expected columns: {list(missing_columns)}"
+            )
+
+        extra_columns = set(df.columns) - set(expected_columns)
+        if extra_columns:
+            result["warnings"].append(f"Unexpected columns: {list(extra_columns)}")
+
+        return result
+
+    def _check_data_leakage(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """Check for potential data leakage."""
+        result = {"errors": [], "warnings": []}
+
+        # Check for ID columns that might leak information
+        id_columns = [
+            col for col in df.columns if "id" in col.lower() or "key" in col.lower()
+        ]
+        if id_columns:
+            result["warnings"].append(f"Potential ID columns detected: {id_columns}")
+
+        # Check for timestamp columns
+        timestamp_columns = [
+            col for col in df.columns if "time" in col.lower() or "date" in col.lower()
+        ]
+        if timestamp_columns:
+            result["warnings"].append(
+                f"Timestamp columns detected: {timestamp_columns}"
+            )
+
+        return result
+
+    def sanitize_input(
+        self, data: Union[Dict, pd.DataFrame]
+    ) -> Union[Dict, pd.DataFrame]:
+        """
+        Sanitize input data by removing or encoding potentially dangerous content.
+
+        Args:
+            data: Input data to sanitize
+
+        Returns:
+            Sanitized data
+        """
+        if isinstance(data, dict):
+            sanitized = {}
+            for key, value in data.items():
+                if isinstance(value, str):
+                    # Basic HTML encoding
+                    sanitized[key] = value.replace("<", "&lt;").replace(">", "&gt;")
+                else:
+                    sanitized[key] = value
+            return sanitized
+        else:
+            # For DataFrame, sanitize string columns
+            df = data.copy()
+            for col in df.select_dtypes(include=["object"]).columns:
+                df[col] = (
+                    df[col]
+                    .astype(str)
+                    .str.replace("<", "&lt;")
+                    .str.replace(">", "&gt;")
+                )
+            return df
+
+    def create_secure_hash(self, data: str) -> str:
+        """Create a secure hash of data."""
+        return hashlib.sha256(data.encode()).hexdigest()
+
+    def create_hmac_signature(self, data: str) -> str:
+        """Create HMAC signature for data integrity."""
+        return hmac.new(
+            self.secret_key.encode(), data.encode(), hashlib.sha256
+        ).hexdigest()
+
+    def verify_hmac_signature(self, data: str, signature: str) -> bool:
+        """Verify HMAC signature."""
+        expected_signature = self.create_hmac_signature(data)
+        return hmac.compare_digest(expected_signature, signature)
+
+    def get_security_report(self) -> Dict[str, Any]:
+        """Get security status report."""
+        return {
+            "api_keys_count": len(self.api_keys),
+            "rate_limits_active": len(self.rate_limits),
+            "secret_key_configured": bool(self.secret_key),
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    def audit_log(
+        self, action: str, user_id: str = None, details: Dict[str, Any] = None
+    ):
+        """Log security-related actions."""
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "user_id": user_id,
+            "details": details or {},
+        }
+
+        logger.info(f"Security audit: {json.dumps(log_entry)}")

@@ -15,7 +15,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from ..config import create_default_config, load_config
 from ..export.model_card import ModelCardGenerator
 from ..logging import get_logger, setup_logging
-from ..service.app import create_app
+from ..service.app import app
 
 # Import moved to avoid circular import
 from ..ui.leaderboard import display_leaderboard_from_file
@@ -375,7 +375,9 @@ def explain(
 def serve(
     run_id: str = typer.Argument(..., help="Run ID"),
     host: str = typer.Option("0.0.0.0", "--host", help="Host to bind to"),
-    port: int = typer.Option(8000, "--port", help="Port to bind to"),
+    port: int = typer.Option(
+        None, "--port", help="Port to bind to (default from config)"
+    ),
     workers: int = typer.Option(1, "--workers", help="Number of workers"),
 ):
     """Start FastAPI prediction service."""
@@ -384,6 +386,11 @@ def serve(
         if not artifacts_dir.exists():
             console.print(f"[red]Run {run_id} not found[/red]")
             return
+
+        # Load config for default port if not specified
+        if port is None:
+            config = create_default_config()
+            port = config.api.port
 
         console.print(
             f"[bold blue]Starting prediction service for run {run_id}[/bold blue]"

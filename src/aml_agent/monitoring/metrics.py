@@ -1,484 +1,388 @@
 """
-Monitoring and metrics collection for the Autonomous ML Agent.
+Monitoring and metrics collection for ML models.
 """
 
+import json
 import time
-from collections import defaultdict, deque
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
+import pandas as pd
+from sklearn.base import BaseEstimator
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    f1_score,
+    mean_absolute_error,
+    mean_squared_error,
+    precision_score,
+    r2_score,
+    recall_score,
+    roc_auc_score,
+)
 
 from ..logging import get_logger
+from ..types import MetricType, TaskType
 
 logger = get_logger()
 
 
-class HealthChecker:
-    """Health check system for monitoring system status."""
-
-    def __init__(self):
-        self.start_time = time.time()
-
-    def run_health_checks(self) -> Dict[str, Any]:
-        """Run comprehensive health checks."""
-        checks = {
-            "system": self._check_system_health(),
-            "memory": self._check_memory_health(),
-            "disk": self._check_disk_health(),
-            "dependencies": self._check_dependencies_health(),
-        }
-
-        overall_status = (
-            "healthy"
-            if all(check["status"] == "healthy" for check in checks.values())
-            else "unhealthy"
-        )
-
-        return {
-            "status": overall_status,
-            "timestamp": datetime.now().isoformat(),
-            "checks": checks,
-        }
-
-    def _check_system_health(self) -> Dict[str, Any]:
-        """Check basic system health."""
-        try:
-            import psutil
-
-            cpu_percent = psutil.cpu_percent(interval=1)
-            memory = psutil.virtual_memory()
-
-            if cpu_percent > 90:
-                return {
-                    "status": "unhealthy",
-                    "message": f"High CPU usage: {cpu_percent}%",
-                }
-            elif memory.percent > 90:
-                return {
-                    "status": "unhealthy",
-                    "message": f"High memory usage: {memory.percent}%",
-                }
-            else:
-                return {
-                    "status": "healthy",
-                    "message": f"CPU: {cpu_percent}%, Memory: {memory.percent}%",
-                }
-        except ImportError:
-            return {"status": "warning", "message": "psutil not available"}
-        except Exception as e:
-            return {"status": "unhealthy", "message": f"System check failed: {e}"}
-
-    def _check_memory_health(self) -> Dict[str, Any]:
-        """Check memory health."""
-        try:
-            import psutil
-
-            memory = psutil.virtual_memory()
-            if memory.percent > 95:
-                return {"status": "unhealthy", "message": "Critical memory usage"}
-            elif memory.percent > 80:
-                return {"status": "warning", "message": "High memory usage"}
-            else:
-                return {
-                    "status": "healthy",
-                    "message": f"Memory usage: {memory.percent}%",
-                }
-        except ImportError:
-            return {"status": "warning", "message": "psutil not available"}
-        except Exception as e:
-            return {"status": "unhealthy", "message": f"Memory check failed: {e}"}
-
-    def _check_disk_health(self) -> Dict[str, Any]:
-        """Check disk health."""
-        try:
-            import psutil
-
-            disk = psutil.disk_usage("/")
-            free_percent = (disk.free / disk.total) * 100
-
-            if free_percent < 5:
-                return {"status": "unhealthy", "message": "Critical disk space"}
-            elif free_percent < 20:
-                return {"status": "warning", "message": "Low disk space"}
-            else:
-                return {
-                    "status": "healthy",
-                    "message": f"Disk free: {free_percent:.1f}%",
-                }
-        except ImportError:
-            return {"status": "warning", "message": "psutil not available"}
-        except Exception as e:
-            return {"status": "unhealthy", "message": f"Disk check failed: {e}"}
-
-    def _check_dependencies_health(self) -> Dict[str, Any]:
-        """Check critical dependencies."""
-        try:
-            import numpy
-            import pandas
-            import sklearn
-
-            return {
-                "status": "healthy",
-                "message": f"Core dependencies available: sklearn {sklearn.__version__}, "
-                f"pandas {pandas.__version__}, numpy {numpy.__version__}",
-            }
-        except ImportError as e:
-            return {"status": "unhealthy", "message": f"Missing dependency: {e}"}
-        except Exception as e:
-            return {"status": "unhealthy", "message": f"Dependency check failed: {e}"}
-
-
-class PerformanceMonitor:
-    """Performance monitoring and metrics collection."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        self.metrics = defaultdict(list)
-        self.counters = defaultdict(int)
-        self.timers = defaultdict(list)
-
-    def get_uptime(self) -> float:
-        """Get system uptime in seconds."""
-        return time.time() - self.start_time
-
-    def get_performance_summary(self) -> Dict[str, Any]:
-        """Get comprehensive performance summary."""
-        summary = {
-            "uptime": self.get_uptime(),
-            "metrics": {},
-        }
-
-        # Process counters
-        for name, value in self.counters.items():
-            summary["metrics"][name] = {"type": "counter", "value": value}
-
-        # Process timers
-        for name, times in self.timers.items():
-            if times:
-                summary["metrics"][name] = {
-                    "type": "timer",
-                    "mean": sum(times) / len(times),
-                    "min": min(times),
-                    "max": max(times),
-                    "count": len(times),
-                }
-
-        return summary
-
-    def increment_counter(self, name: str, value: int = 1):
-        """Increment a counter metric."""
-        self.counters[name] += value
-
-    def record_timer(self, name: str, duration: float):
-        """Record a timer metric."""
-        self.timers[name].append(duration)
-
-    def record_metric(self, name: str, value: float):
-        """Record a general metric."""
-        self.metrics[name].append(value)
-
-    def reset_metrics(self):
-        """Reset all metrics."""
-        self.metrics.clear()
-        self.counters.clear()
-        self.timers.clear()
-
-
 class MetricsCollector:
-    """Collect and store system metrics."""
+    """Collect and track ML model metrics."""
 
-    def __init__(self, max_history: int = 1000):
-        self.max_history = max_history
-        self.metrics: Dict[str, deque] = defaultdict(lambda: deque(maxlen=max_history))
-        self.counters: Dict[str, int] = defaultdict(int)
-        self.timers: Dict[str, List[float]] = defaultdict(list)
-        self.start_time = time.time()
+    def __init__(self, task_type: TaskType, metrics_dir: str = "artifacts/metrics"):
+        self.task_type = task_type
+        self.metrics_dir = Path(metrics_dir)
+        self.metrics_dir.mkdir(parents=True, exist_ok=True)
+        self.metrics_history = []
 
-    def increment_counter(self, name: str, value: int = 1) -> None:
-        """Increment a counter metric."""
-        self.counters[name] += value
-        self._add_metric(f"counter_{name}", self.counters[name])
+    def calculate_metrics(
+        self,
+        y_true: pd.Series,
+        y_pred: pd.Series,
+        y_prob: Optional[pd.DataFrame] = None,
+        model_name: Optional[str] = None,
+        run_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Calculate comprehensive metrics for model evaluation.
 
-    def record_timer(self, name: str, duration: float) -> None:
-        """Record a timing metric."""
-        self.timers[name].append(duration)
-        if len(self.timers[name]) > self.max_history:
-            self.timers[name] = self.timers[name][-self.max_history :]
+        Args:
+            y_true: True target values
+            y_pred: Predicted values
+            y_prob: Predicted probabilities (optional)
+            model_name: Name of the model
+            run_id: Run identifier
 
-        self._add_metric(f"timer_{name}", duration)
+        Returns:
+            Dictionary with calculated metrics
+        """
+        metrics = {
+            "timestamp": datetime.now().isoformat(),
+            "model_name": model_name,
+            "run_id": run_id,
+            "task_type": self.task_type.value,
+            "n_samples": len(y_true),
+        }
 
-    def record_gauge(self, name: str, value: float) -> None:
-        """Record a gauge metric."""
-        self._add_metric(f"gauge_{name}", value)
+        if self.task_type == TaskType.CLASSIFICATION:
+            metrics.update(
+                self._calculate_classification_metrics(y_true, y_pred, y_prob)
+            )
+        else:
+            metrics.update(self._calculate_regression_metrics(y_true, y_pred))
 
-    def _add_metric(self, name: str, value: float) -> None:
-        """Add metric to history."""
-        timestamp = time.time()
-        self.metrics[name].append(
+        # Store in history
+        self.metrics_history.append(metrics)
+
+        # Save to file
+        self._save_metrics(metrics)
+
+        return metrics
+
+    def _calculate_classification_metrics(
+        self, y_true: pd.Series, y_pred: pd.Series, y_prob: Optional[pd.DataFrame]
+    ) -> Dict[str, Any]:
+        """Calculate classification-specific metrics."""
+        metrics = {}
+
+        # Basic classification metrics
+        metrics["accuracy"] = accuracy_score(y_true, y_pred)
+        metrics["balanced_accuracy"] = balanced_accuracy_score(y_true, y_pred)
+        metrics["precision_weighted"] = precision_score(
+            y_true, y_pred, average="weighted", zero_division=0
+        )
+        metrics["recall_weighted"] = recall_score(
+            y_true, y_pred, average="weighted", zero_division=0
+        )
+        metrics["f1_weighted"] = f1_score(
+            y_true, y_pred, average="weighted", zero_division=0
+        )
+
+        # Binary classification metrics
+        if len(y_true.unique()) == 2:
+            metrics["precision_binary"] = precision_score(
+                y_true, y_pred, zero_division=0
+            )
+            metrics["recall_binary"] = recall_score(y_true, y_pred, zero_division=0)
+            metrics["f1_binary"] = f1_score(y_true, y_pred, zero_division=0)
+
+        # Probability-based metrics
+        if y_prob is not None:
+            try:
+                if len(y_true.unique()) == 2:
+                    # Binary classification
+                    metrics["roc_auc"] = roc_auc_score(y_true, y_prob.iloc[:, 1])
+                else:
+                    # Multi-class classification
+                    metrics["roc_auc_ovr"] = roc_auc_score(
+                        y_true, y_prob, multi_class="ovr", average="weighted"
+                    )
+                    metrics["roc_auc_ovo"] = roc_auc_score(
+                        y_true, y_prob, multi_class="ovo", average="weighted"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to calculate ROC AUC: {e}")
+
+        # Class distribution
+        metrics["class_distribution_true"] = y_true.value_counts().to_dict()
+        metrics["class_distribution_pred"] = pd.Series(y_pred).value_counts().to_dict()
+
+        return metrics
+
+    def _calculate_regression_metrics(
+        self, y_true: pd.Series, y_pred: pd.Series
+    ) -> Dict[str, Any]:
+        """Calculate regression-specific metrics."""
+        metrics = {}
+
+        # Basic regression metrics
+        metrics["mae"] = mean_absolute_error(y_true, y_pred)
+        metrics["mse"] = mean_squared_error(y_true, y_pred)
+        metrics["rmse"] = mean_squared_error(y_true, y_pred, squared=False)
+        metrics["r2"] = r2_score(y_true, y_pred)
+
+        # Additional regression metrics
+        residuals = y_true - y_pred
+        metrics["mean_residual"] = residuals.mean()
+        metrics["std_residual"] = residuals.std()
+        metrics["max_residual"] = residuals.max()
+        metrics["min_residual"] = residuals.min()
+
+        # Prediction statistics
+        metrics["mean_prediction"] = y_pred.mean()
+        metrics["std_prediction"] = y_pred.std()
+        metrics["min_prediction"] = y_pred.min()
+        metrics["max_prediction"] = y_pred.max()
+
+        return metrics
+
+    def track_training_metrics(
+        self,
+        model: BaseEstimator,
+        X: pd.DataFrame,
+        y: pd.Series,
+        cv_scores: List[float],
+        training_time: float,
+        model_name: Optional[str] = None,
+        run_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Track metrics during model training.
+
+        Args:
+            model: Trained model
+            X: Feature matrix
+            y: Target vector
+            cv_scores: Cross-validation scores
+            training_time: Training time in seconds
+            model_name: Name of the model
+            run_id: Run identifier
+
+        Returns:
+            Dictionary with training metrics
+        """
+        # Get predictions
+        y_pred = model.predict(X)
+        y_prob = None
+        if hasattr(model, "predict_proba"):
+            y_prob = pd.DataFrame(model.predict_proba(X))
+
+        # Calculate basic metrics
+        metrics = self.calculate_metrics(
+            y_true=y,
+            y_pred=pd.Series(y_pred),
+            y_prob=y_prob,
+            model_name=model_name,
+            run_id=run_id,
+        )
+
+        # Add training-specific metrics
+        metrics.update(
             {
-                "timestamp": timestamp,
-                "value": value,
-                "datetime": datetime.fromtimestamp(timestamp),
+                "cv_scores": cv_scores,
+                "cv_mean": sum(cv_scores) / len(cv_scores),
+                "cv_std": pd.Series(cv_scores).std(),
+                "training_time": training_time,
+                "n_features": X.shape[1],
+                "n_samples": X.shape[0],
             }
         )
 
-    def get_metric_summary(self, name: str) -> Optional[Dict[str, Any]]:
-        """Get summary statistics for a metric."""
-        if name not in self.metrics or not self.metrics[name]:
-            return None
+        return metrics
 
-        values = [m["value"] for m in self.metrics[name]]
+    def track_prediction_metrics(
+        self,
+        y_true: pd.Series,
+        y_pred: pd.Series,
+        y_prob: Optional[pd.DataFrame] = None,
+        prediction_time: Optional[float] = None,
+        model_name: Optional[str] = None,
+        run_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Track metrics for model predictions.
 
-        return {
-            "name": name,
-            "count": len(values),
-            "min": min(values),
-            "max": max(values),
-            "mean": sum(values) / len(values),
-            "latest": values[-1],
-            "first_seen": self.metrics[name][0]["datetime"],
-            "last_seen": self.metrics[name][-1]["datetime"],
+        Args:
+            y_true: True target values
+            y_pred: Predicted values
+            y_prob: Predicted probabilities (optional)
+            prediction_time: Prediction time in seconds
+            model_name: Name of the model
+            run_id: Run identifier
+
+        Returns:
+            Dictionary with prediction metrics
+        """
+        metrics = self.calculate_metrics(
+            y_true=y_true,
+            y_pred=y_pred,
+            y_prob=y_prob,
+            model_name=model_name,
+            run_id=run_id,
+        )
+
+        if prediction_time is not None:
+            metrics["prediction_time"] = prediction_time
+
+        return metrics
+
+    def get_metrics_summary(self, last_n: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Get summary of collected metrics.
+
+        Args:
+            last_n: Number of recent metrics to include (None for all)
+
+        Returns:
+            Dictionary with metrics summary
+        """
+        if not self.metrics_history:
+            return {"message": "No metrics collected yet"}
+
+        metrics_to_analyze = (
+            self.metrics_history[-last_n:] if last_n else self.metrics_history
+        )
+
+        summary = {
+            "total_metrics": len(metrics_to_analyze),
+            "time_range": {
+                "start": metrics_to_analyze[0]["timestamp"],
+                "end": metrics_to_analyze[-1]["timestamp"],
+            },
+            "models": list(
+                set(
+                    m.get("model_name")
+                    for m in metrics_to_analyze
+                    if m.get("model_name")
+                )
+            ),
+            "runs": list(
+                set(m.get("run_id") for m in metrics_to_analyze if m.get("run_id"))
+            ),
         }
 
-    def get_all_metrics(self) -> Dict[str, Any]:
-        """Get all metrics summary."""
-        summary = {}
-
-        # Counter metrics
-        for name, value in self.counters.items():
-            summary[f"counter_{name}"] = {"type": "counter", "value": value}
-
-        # Timer metrics
-        for name, values in self.timers.items():
-            if values:
-                summary[f"timer_{name}"] = {
-                    "type": "timer",
-                    "count": len(values),
-                    "min": min(values),
-                    "max": max(values),
-                    "mean": sum(values) / len(values),
-                    "latest": values[-1],
-                }
-
-        # Gauge metrics
-        for name, history in self.metrics.items():
-            if not name.startswith(("counter_", "timer_")):
-                if history:
-                    summary[name] = {
-                        "type": "gauge",
-                        "latest": history[-1]["value"],
-                        "count": len(history),
-                    }
+        # Calculate average metrics
+        if self.task_type == TaskType.CLASSIFICATION:
+            summary["average_metrics"] = self._calculate_average_classification_metrics(
+                metrics_to_analyze
+            )
+        else:
+            summary["average_metrics"] = self._calculate_average_regression_metrics(
+                metrics_to_analyze
+            )
 
         return summary
 
-    def get_uptime(self) -> float:
-        """Get system uptime in seconds."""
-        return time.time() - self.start_time
+    def _calculate_average_classification_metrics(
+        self, metrics_list: List[Dict[str, Any]]
+    ) -> Dict[str, float]:
+        """Calculate average classification metrics."""
+        avg_metrics = {}
 
-    def reset_metrics(self) -> None:
-        """Reset all metrics."""
-        self.metrics.clear()
-        self.counters.clear()
-        self.timers.clear()
-        self.start_time = time.time()
-        logger.info("Metrics reset")
-
-    def get_metric_trends(self, metric_name: str, hours: int = 24) -> Dict[str, Any]:
-        """Analyze trends for a specific metric."""
-        if metric_name not in self.metrics:
-            return {"trend": "no_data", "change": 0, "values": []}
-
-        cutoff_time = time.time() - (hours * 3600)
-        recent_values = [
-            m for m in self.metrics[metric_name] if m["timestamp"] > cutoff_time
+        metric_keys = [
+            "accuracy",
+            "balanced_accuracy",
+            "precision_weighted",
+            "recall_weighted",
+            "f1_weighted",
         ]
 
-        if len(recent_values) < 2:
-            return {"trend": "insufficient_data", "change": 0, "values": []}
+        for key in metric_keys:
+            values = [m.get(key) for m in metrics_list if m.get(key) is not None]
+            if values:
+                avg_metrics[f"avg_{key}"] = sum(values) / len(values)
+                avg_metrics[f"std_{key}"] = pd.Series(values).std()
 
-        values = [m["value"] for m in recent_values]
+        return avg_metrics
 
-        # Calculate trend
-        if len(values) >= 10:
-            recent_avg = sum(values[-5:]) / 5
-            older_avg = sum(values[:5]) / 5
-        else:
-            recent_avg = values[-1]
-            older_avg = values[0]
+    def _calculate_average_regression_metrics(
+        self, metrics_list: List[Dict[str, Any]]
+    ) -> Dict[str, float]:
+        """Calculate average regression metrics."""
+        avg_metrics = {}
 
-        change = ((recent_avg - older_avg) / older_avg * 100) if older_avg > 0 else 0
+        metric_keys = ["mae", "mse", "rmse", "r2"]
 
-        if change > 5:
-            trend = "increasing"
-        elif change < -5:
-            trend = "decreasing"
-        else:
-            trend = "stable"
+        for key in metric_keys:
+            values = [m.get(key) for m in metrics_list if m.get(key) is not None]
+            if values:
+                avg_metrics[f"avg_{key}"] = sum(values) / len(values)
+                avg_metrics[f"std_{key}"] = pd.Series(values).std()
 
-        return {
-            "trend": trend,
-            "change": change,
-            "values": values,
-            "current": values[-1] if values else 0,
-            "average": sum(values) / len(values),
+        return avg_metrics
+
+    def _save_metrics(self, metrics: Dict[str, Any]) -> None:
+        """Save metrics to file."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"metrics_{timestamp}.json"
+        filepath = self.metrics_dir / filename
+
+        with open(filepath, "w") as f:
+            json.dump(metrics, f, indent=2, default=str)
+
+        logger.debug(f"Metrics saved to {filepath}")
+
+    def export_metrics(self, output_path: str) -> str:
+        """Export all metrics to a single file."""
+        output_file = Path(output_path)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(output_file, "w") as f:
+            json.dump(self.metrics_history, f, indent=2, default=str)
+
+        logger.info(f"Metrics exported to {output_file}")
+        return str(output_file)
+
+    def load_metrics(self, file_path: str) -> None:
+        """Load metrics from file."""
+        with open(file_path, "r") as f:
+            self.metrics_history = json.load(f)
+
+        logger.info(f"Metrics loaded from {file_path}")
+
+    def get_model_performance_trend(self, model_name: str) -> Dict[str, Any]:
+        """Get performance trend for a specific model."""
+        model_metrics = [
+            m for m in self.metrics_history if m.get("model_name") == model_name
+        ]
+
+        if not model_metrics:
+            return {"message": f"No metrics found for model {model_name}"}
+
+        trend = {
+            "model_name": model_name,
+            "n_evaluations": len(model_metrics),
+            "timestamps": [m["timestamp"] for m in model_metrics],
         }
 
-    def export_metrics(self, format: str = "json") -> str:
-        """Export metrics in specified format."""
-        metrics = self.get_all_metrics()
-
-        if format == "json":
-            import json
-
-            return json.dumps(metrics, indent=2, default=str)
-        elif format == "csv":
-            import csv
-            import io
-
-            output = io.StringIO()
-            writer = csv.writer(output)
-            writer.writerow(
-                ["metric_name", "type", "value", "count", "min", "max", "mean"]
-            )
-
-            for name, data in metrics.items():
-                if isinstance(data, dict) and "type" in data:
-                    writer.writerow(
-                        [
-                            name,
-                            data.get("type", ""),
-                            data.get("value", data.get("latest", "")),
-                            data.get("count", ""),
-                            data.get("min", ""),
-                            data.get("max", ""),
-                            data.get("mean", ""),
-                        ]
-                    )
-
-            return output.getvalue()
+        # Add performance trends
+        if self.task_type == TaskType.CLASSIFICATION:
+            trend["accuracy_trend"] = [m.get("accuracy") for m in model_metrics]
+            trend["f1_trend"] = [m.get("f1_weighted") for m in model_metrics]
         else:
-            raise ValueError(f"Unsupported format: {format}")
+            trend["r2_trend"] = [m.get("r2") for m in model_metrics]
+            trend["rmse_trend"] = [m.get("rmse") for m in model_metrics]
 
-    def get_health_score(self) -> float:
-        """Calculate overall system health score (0-100)."""
-        try:
-            health_checks = health_checker.run_health_checks()
-            performance = performance_monitor.get_performance_summary()
-
-            # Calculate health score based on various factors
-            score = 100.0
-
-            # CPU usage penalty
-            cpu_usage = performance.get("cpu_usage", 0)
-            if cpu_usage > 90:
-                score -= 30
-            elif cpu_usage > 80:
-                score -= 20
-            elif cpu_usage > 70:
-                score -= 10
-
-            # Memory usage penalty
-            memory_usage = performance.get("memory_usage", 0)
-            if memory_usage > 90:
-                score -= 30
-            elif memory_usage > 80:
-                score -= 20
-            elif memory_usage > 70:
-                score -= 10
-
-            # Disk usage penalty
-            disk_usage = performance.get("disk_usage", 0)
-            if disk_usage > 90:
-                score -= 20
-            elif disk_usage > 80:
-                score -= 10
-
-            # Health check failures
-            failed_checks = sum(
-                1 for check, status in health_checks.items() if not status
-            )
-            score -= failed_checks * 10
-
-            return max(0, min(100, score))
-
-        except Exception as e:
-            logger.error(f"Error calculating health score: {e}")
-            return 50.0  # Default neutral score
-
-    def get_performance_alerts(self) -> List[Dict[str, Any]]:
-        """Get performance alerts based on current metrics."""
-        alerts = []
-        performance = performance_monitor.get_performance_summary()
-
-        # CPU alert
-        cpu_usage = performance.get("cpu_usage", 0)
-        if cpu_usage > 90:
-            alerts.append(
-                {
-                    "type": "critical",
-                    "metric": "cpu_usage",
-                    "value": cpu_usage,
-                    "message": f"CPU usage is critically high: {cpu_usage:.1f}%",
-                }
-            )
-        elif cpu_usage > 80:
-            alerts.append(
-                {
-                    "type": "warning",
-                    "metric": "cpu_usage",
-                    "value": cpu_usage,
-                    "message": f"CPU usage is high: {cpu_usage:.1f}%",
-                }
-            )
-
-        # Memory alert
-        memory_usage = performance.get("memory_usage", 0)
-        if memory_usage > 90:
-            alerts.append(
-                {
-                    "type": "critical",
-                    "metric": "memory_usage",
-                    "value": memory_usage,
-                    "message": f"Memory usage is critically high: {memory_usage:.1f}%",
-                }
-            )
-        elif memory_usage > 80:
-            alerts.append(
-                {
-                    "type": "warning",
-                    "metric": "memory_usage",
-                    "value": memory_usage,
-                    "message": f"Memory usage is high: {memory_usage:.1f}%",
-                }
-            )
-
-        # Disk alert
-        disk_usage = performance.get("disk_usage", 0)
-        if disk_usage > 90:
-            alerts.append(
-                {
-                    "type": "critical",
-                    "metric": "disk_usage",
-                    "value": disk_usage,
-                    "message": f"Disk usage is critically high: {disk_usage:.1f}%",
-                }
-            )
-        elif disk_usage > 80:
-            alerts.append(
-                {
-                    "type": "warning",
-                    "metric": "disk_usage",
-                    "value": disk_usage,
-                    "message": f"Disk usage is high: {disk_usage:.1f}%",
-                }
-            )
-
-        return alerts
-
-
-# Global instances
-performance_monitor = PerformanceMonitor()
-health_checker = HealthChecker()
-
-# Additional global instances
-metrics_collector = MetricsCollector()
+        return trend

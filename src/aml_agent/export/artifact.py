@@ -1,264 +1,394 @@
 """
-Artifact export functionality for the Autonomous ML Agent.
+Artifact export functionality for saving models and metadata.
 """
 
 import json
 import pickle
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import joblib
-import numpy as np
 import pandas as pd
+from sklearn.base import BaseEstimator
+from sklearn.pipeline import Pipeline
 
 from ..logging import get_logger
-from ..types import DatasetProfile, RunMetadata, TaskType, TrialResult
+from ..types import RunMetadata, TaskType
 
 logger = get_logger()
 
 
 class ArtifactExporter:
-    """Export trained models and artifacts."""
+    """Export trained models and metadata as reusable artifacts."""
 
-    def __init__(self, output_dir: Path):
-        self.output_dir = output_dir
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, artifacts_dir: str = "artifacts"):
+        self.artifacts_dir = Path(artifacts_dir)
+        self.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     def export_pipeline(
         self,
-        preprocessor: Any,
-        model: Any,
-        task_type: TaskType,
-        feature_names: List[str],
-        target_name: Optional[str] = None,
-        format: str = "joblib",
+        pipeline: Pipeline,
+        run_id: str,
+        metadata: RunMetadata,
+        additional_data: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, str]:
         """
-        Export complete ML pipeline.
+        Export a complete ML pipeline as a reusable artifact.
 
         Args:
-            preprocessor: Fitted preprocessing pipeline
-            model: Trained model
-            task_type: Task type
-            feature_names: List of feature names
-            target_name: Target variable name
-            format: Export format ("joblib" or "pickle")
+            pipeline: Fitted sklearn pipeline
+            run_id: Unique run identifier
+            metadata: Run metadata
+            additional_data: Additional data to save
 
         Returns:
-            Dictionary with exported file paths
+            Dictionary with paths to saved artifacts
         """
-        logger.info(f"Exporting pipeline in {format} format")
+        run_dir = self.artifacts_dir / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
 
-        exported_files = {}
+        saved_paths = {}
 
-        # Export preprocessor
-        preprocessor_file = self.output_dir / f"preprocessor.{format}"
-        self._export_object(preprocessor, preprocessor_file, format)
-        exported_files["preprocessor"] = str(preprocessor_file)
+        # Save the main pipeline
+        pipeline_path = run_dir / "pipeline.joblib"
+        joblib.dump(pipeline, pipeline_path)
+        saved_paths["pipeline"] = str(pipeline_path)
+        logger.info(f"Pipeline saved to {pipeline_path}")
 
-        # Export model
-        model_file = self.output_dir / f"model.{format}"
-        self._export_object(model, model_file, format)
-        exported_files["model"] = str(model_file)
+        # Save metadata
+        metadata_path = run_dir / "metadata.json"
+        self._save_metadata(metadata, metadata_path)
+        saved_paths["metadata"] = str(metadata_path)
 
-        # Export metadata
-        metadata = {
-            "task_type": task_type.value,
-            "feature_names": feature_names,
-            "target_name": target_name,
-            "n_features": len(feature_names),
-            "export_timestamp": pd.Timestamp.now().isoformat(),
-        }
+        # Save additional data if provided
+        if additional_data:
+            additional_path = run_dir / "additional_data.json"
+            with open(additional_path, "w") as f:
+                json.dump(additional_data, f, indent=2, default=str)
+            saved_paths["additional_data"] = str(additional_path)
 
-        metadata_file = self.output_dir / "metadata.json"
-        with open(metadata_file, "w") as f:
-            json.dump(metadata, f, indent=2)
-        exported_files["metadata"] = str(metadata_file)
+        # Save pipeline info
+        pipeline_info = self._extract_pipeline_info(pipeline)
+        info_path = run_dir / "pipeline_info.json"
+        with open(info_path, "w") as f:
+            json.dump(pipeline_info, f, indent=2, default=str)
+        saved_paths["pipeline_info"] = str(info_path)
 
-        # Export feature names
-        feature_names_file = self.output_dir / "feature_names.json"
-        with open(feature_names_file, "w") as f:
-            json.dump(feature_names, f, indent=2)
-        exported_files["feature_names"] = str(feature_names_file)
+        # Create requirements file
+        requirements_path = run_dir / "requirements.txt"
+        self._create_requirements_file(requirements_path)
+        saved_paths["requirements"] = str(requirements_path)
 
-        logger.info(f"Pipeline exported to {self.output_dir}")
-        return exported_files
+        # Create usage example
+        example_path = run_dir / "usage_example.py"
+        self._create_usage_example(example_path, run_id)
+        saved_paths["usage_example"] = str(example_path)
 
-    def export_trial_results(self, trial_results: List[TrialResult]) -> str:
-        """Export trial results to CSV."""
-        if not trial_results:
-            return ""
+        logger.info(f"Artifacts exported to {run_dir}")
+        return saved_paths
 
-        # Convert trial results to DataFrame
-        data = []
-        for result in trial_results:
-            data.append(
-                {
-                    "trial_id": result.trial_id,
-                    "model_type": result.model_type.value,
-                    "score": result.score,
-                    "metric": result.metric.value,
-                    "cv_mean": np.mean(result.cv_scores) if result.cv_scores else 0,
-                    "cv_std": np.std(result.cv_scores) if result.cv_scores else 0,
-                    "fit_time": result.fit_time,
-                    "predict_time": result.predict_time,
-                    "status": result.status,
-                    "timestamp": result.timestamp.isoformat(),
-                    "params": json.dumps(result.params),
-                }
-            )
-
-        df = pd.DataFrame(data)
-        results_file = self.output_dir / "trial_results.csv"
-        df.to_csv(results_file, index=False)
-
-        logger.info(f"Trial results exported to {results_file}")
-        return str(results_file)
-
-    def export_leaderboard(self, leaderboard_data: List[Dict[str, Any]]) -> str:
-        """Export leaderboard to CSV."""
-        if not leaderboard_data:
-            return ""
-
-        df = pd.DataFrame(leaderboard_data)
-        leaderboard_file = self.output_dir / "leaderboard.csv"
-        df.to_csv(leaderboard_file, index=False)
-
-        logger.info(f"Leaderboard exported to {leaderboard_file}")
-        return str(leaderboard_file)
-
-    def export_dataset_profile(self, dataset_profile: DatasetProfile) -> str:
-        """Export dataset profile to JSON."""
-        profile_data = {
-            "n_rows": dataset_profile.n_rows,
-            "n_cols": dataset_profile.n_cols,
-            "n_numeric": dataset_profile.n_numeric,
-            "n_categorical": dataset_profile.n_categorical,
-            "n_datetime": dataset_profile.n_datetime,
-            "n_text": dataset_profile.n_text,
-            "missing_ratio": dataset_profile.missing_ratio,
-            "class_balance": dataset_profile.class_balance,
-            "task_type": (
-                dataset_profile.task_type.value if dataset_profile.task_type else None
-            ),
-            "target_column": dataset_profile.target_column,
-            "feature_columns": dataset_profile.feature_columns,
-            "data_hash": dataset_profile.data_hash,
-        }
-
-        profile_file = self.output_dir / "dataset_profile.json"
-        with open(profile_file, "w") as f:
-            json.dump(profile_data, f, indent=2)
-
-        logger.info(f"Dataset profile exported to {profile_file}")
-        return str(profile_file)
-
-    def export_run_metadata(self, metadata: RunMetadata) -> str:
-        """Export run metadata to JSON."""
-        metadata_data = {
-            "run_id": metadata.run_id,
-            "start_time": metadata.start_time.isoformat(),
-            "end_time": metadata.end_time.isoformat() if metadata.end_time else None,
-            "status": metadata.status,
-            "total_trials": metadata.total_trials,
-            "best_score": metadata.best_score,
-            "best_model": metadata.best_model,
-            "config": metadata.config,
-        }
-
-        metadata_file = self.output_dir / "run_metadata.json"
-        with open(metadata_file, "w") as f:
-            json.dump(metadata_data, f, indent=2, default=str)
-
-        logger.info(f"Run metadata exported to {metadata_file}")
-        return str(metadata_file)
-
-    def export_feature_importance(
-        self, feature_importance: Dict[str, float], model_name: str = "model"
+    def export_model_only(
+        self, model: BaseEstimator, run_id: str, model_name: str = "model"
     ) -> str:
-        """Export feature importance to JSON."""
-        # Sort by importance
-        sorted_importance = sorted(
-            feature_importance.items(), key=lambda x: x[1], reverse=True
+        """
+        Export just the model without pipeline.
+
+        Args:
+            model: Trained model
+            run_id: Unique run identifier
+            model_name: Name for the model file
+
+        Returns:
+            Path to saved model
+        """
+        run_dir = self.artifacts_dir / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        model_path = run_dir / f"{model_name}.joblib"
+        joblib.dump(model, model_path)
+        logger.info(f"Model saved to {model_path}")
+        return str(model_path)
+
+    def export_data(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        run_id: str,
+        data_name: str = "processed_data",
+    ) -> Dict[str, str]:
+        """
+        Export processed data.
+
+        Args:
+            X: Feature matrix
+            y: Target vector
+            run_id: Unique run identifier
+            data_name: Name for the data files
+
+        Returns:
+            Dictionary with paths to saved data
+        """
+        run_dir = self.artifacts_dir / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        saved_paths = {}
+
+        # Save features
+        X_path = run_dir / f"{data_name}_X.parquet"
+        X.to_parquet(X_path)
+        saved_paths["features"] = str(X_path)
+
+        # Save targets
+        y_path = run_dir / f"{data_name}_y.parquet"
+        y.to_frame().to_parquet(y_path)
+        saved_paths["targets"] = str(y_path)
+
+        # Save combined data
+        combined_path = run_dir / f"{data_name}_combined.parquet"
+        combined_data = pd.concat([X, y], axis=1)
+        combined_data.to_parquet(combined_path)
+        saved_paths["combined"] = str(combined_path)
+
+        logger.info(f"Data exported to {run_dir}")
+        return saved_paths
+
+    def export_leaderboard(self, leaderboard: pd.DataFrame, run_id: str) -> str:
+        """
+        Export leaderboard results.
+
+        Args:
+            leaderboard: Leaderboard DataFrame
+            run_id: Unique run identifier
+
+        Returns:
+            Path to saved leaderboard
+        """
+        run_dir = self.artifacts_dir / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        leaderboard_path = run_dir / "leaderboard.csv"
+        leaderboard.to_csv(leaderboard_path, index=False)
+        logger.info(f"Leaderboard saved to {leaderboard_path}")
+        return str(leaderboard_path)
+
+    def export_explanations(self, explanations: Dict[str, Any], run_id: str) -> str:
+        """
+        Export model explanations.
+
+        Args:
+            explanations: Explanation data
+            run_id: Unique run identifier
+
+        Returns:
+            Path to saved explanations
+        """
+        run_dir = self.artifacts_dir / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        explanations_path = run_dir / "explanations.json"
+        with open(explanations_path, "w") as f:
+            json.dump(explanations, f, indent=2, default=str)
+        logger.info(f"Explanations saved to {explanations_path}")
+        return str(explanations_path)
+
+    def load_pipeline(self, run_id: str) -> Pipeline:
+        """
+        Load a saved pipeline.
+
+        Args:
+            run_id: Unique run identifier
+
+        Returns:
+            Loaded pipeline
+        """
+        pipeline_path = self.artifacts_dir / run_id / "pipeline.joblib"
+        if not pipeline_path.exists():
+            raise FileNotFoundError(f"Pipeline not found at {pipeline_path}")
+
+        pipeline = joblib.load(pipeline_path)
+        logger.info(f"Pipeline loaded from {pipeline_path}")
+        return pipeline
+
+    def load_model(self, run_id: str, model_name: str = "model") -> BaseEstimator:
+        """
+        Load a saved model.
+
+        Args:
+            run_id: Unique run identifier
+            model_name: Name of the model file
+
+        Returns:
+            Loaded model
+        """
+        model_path = self.artifacts_dir / run_id / f"{model_name}.joblib"
+        if not model_path.exists():
+            raise FileNotFoundError(f"Model not found at {model_path}")
+
+        model = joblib.load(model_path)
+        logger.info(f"Model loaded from {model_path}")
+        return model
+
+    def load_metadata(self, run_id: str) -> Dict[str, Any]:
+        """
+        Load run metadata.
+
+        Args:
+            run_id: Unique run identifier
+
+        Returns:
+            Metadata dictionary
+        """
+        metadata_path = self.artifacts_dir / run_id / "metadata.json"
+        if not metadata_path.exists():
+            raise FileNotFoundError(f"Metadata not found at {metadata_path}")
+
+        with open(metadata_path, "r") as f:
+            metadata = json.load(f)
+
+        logger.info(f"Metadata loaded from {metadata_path}")
+        return metadata
+
+    def _save_metadata(self, metadata: RunMetadata, path: Path) -> None:
+        """Save metadata to JSON file."""
+        metadata_dict = {
+            "run_id": metadata.run_id,
+            "dataset_hash": metadata.dataset_hash,
+            "task_type": metadata.task_type.value,
+            "n_rows": metadata.n_rows,
+            "n_features": metadata.n_features,
+            "n_numeric": metadata.n_numeric,
+            "n_categorical": metadata.n_categorical,
+            "missing_ratio": metadata.missing_ratio,
+            "class_balance": metadata.class_balance,
+            "best_model": metadata.best_model,
+            "best_score": metadata.best_score,
+            "best_params": metadata.best_params,
+            "timestamp": metadata.timestamp.isoformat(),
+        }
+
+        with open(path, "w") as f:
+            json.dump(metadata_dict, f, indent=2, default=str)
+
+    def _extract_pipeline_info(self, pipeline: Pipeline) -> Dict[str, Any]:
+        """Extract information about the pipeline."""
+        steps_info = []
+
+        for name, step in pipeline.steps:
+            step_info = {
+                "name": name,
+                "type": type(step).__name__,
+                "module": type(step).__module__,
+            }
+
+            # Add parameters if available
+            if hasattr(step, "get_params"):
+                try:
+                    params = step.get_params()
+                    # Convert numpy types to Python types
+                    serializable_params = {}
+                    for key, value in params.items():
+                        if hasattr(value, "item"):  # numpy scalar
+                            serializable_params[key] = value.item()
+                        elif isinstance(
+                            value, (list, tuple, dict, str, int, float, bool)
+                        ):
+                            serializable_params[key] = value
+                        else:
+                            serializable_params[key] = str(value)
+                    step_info["parameters"] = serializable_params
+                except Exception as e:
+                    step_info["parameters"] = {"error": str(e)}
+
+            steps_info.append(step_info)
+
+        return {
+            "pipeline_type": type(pipeline).__name__,
+            "n_steps": len(pipeline.steps),
+            "steps": steps_info,
+            "created_at": datetime.now().isoformat(),
+        }
+
+    def _create_requirements_file(self, path: Path) -> None:
+        """Create requirements.txt file for the artifact."""
+        requirements = [
+            "scikit-learn>=1.3.0",
+            "pandas>=2.0.0",
+            "numpy>=1.24.0",
+            "joblib>=1.3.0",
+        ]
+
+        with open(path, "w") as f:
+            f.write("\n".join(requirements))
+
+    def _create_usage_example(self, path: Path, run_id: str) -> None:
+        """Create usage example for the artifact."""
+        example_code = f'''"""
+Usage example for ML pipeline artifact: {run_id}
+"""
+
+import joblib
+import pandas as pd
+import numpy as np
+
+# Load the pipeline
+pipeline = joblib.load("pipeline.joblib")
+
+# Example: Load new data
+# new_data = pd.read_csv("new_data.csv")
+# new_data = new_data.drop(columns=["target"])  # Remove target if present
+
+# Example: Make predictions
+# predictions = pipeline.predict(new_data)
+# probabilities = pipeline.predict_proba(new_data)  # If classification
+
+# Example: Get feature names after preprocessing
+# feature_names = pipeline.get_feature_names_out()
+
+print("Pipeline loaded successfully!")
+print(f"Pipeline steps: {{[step[0] for step in pipeline.steps]}}")
+'''
+
+        with open(path, "w") as f:
+            f.write(example_code)
+
+    def list_artifacts(self) -> List[Dict[str, Any]]:
+        """List all available artifacts."""
+        artifacts = []
+
+        for run_dir in self.artifacts_dir.iterdir():
+            if run_dir.is_dir():
+                metadata_path = run_dir / "metadata.json"
+                if metadata_path.exists():
+                    try:
+                        with open(metadata_path, "r") as f:
+                            metadata = json.load(f)
+                        artifacts.append(
+                            {
+                                "run_id": run_dir.name,
+                                "metadata": metadata,
+                                "path": str(run_dir),
+                            }
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to load metadata for {run_dir}: {e}")
+
+        return sorted(
+            artifacts, key=lambda x: x["metadata"].get("timestamp", ""), reverse=True
         )
 
-        importance_data = {
-            "model_name": model_name,
-            "feature_importance": dict(sorted_importance),
-            "top_features": [feature for feature, _ in sorted_importance[:10]],
-        }
+    def cleanup_old_artifacts(self, keep_last_n: int = 10) -> None:
+        """Clean up old artifacts, keeping only the last N."""
+        artifacts = self.list_artifacts()
 
-        importance_file = self.output_dir / f"{model_name}_feature_importance.json"
-        with open(importance_file, "w") as f:
-            json.dump(importance_data, f, indent=2)
+        if len(artifacts) <= keep_last_n:
+            return
 
-        logger.info(f"Feature importance exported to {importance_file}")
-        return str(importance_file)
+        # Remove old artifacts
+        for artifact in artifacts[keep_last_n:]:
+            import shutil
 
-    def export_predictions(
-        self,
-        predictions: np.ndarray,
-        probabilities: Optional[np.ndarray] = None,
-        indices: Optional[np.ndarray] = None,
-    ) -> str:
-        """Export predictions to CSV."""
-        data = {"prediction": predictions}
+            shutil.rmtree(artifact["path"])
+            logger.info(f"Removed old artifact: {artifact['run_id']}")
 
-        if probabilities is not None:
-            if probabilities.ndim == 1:
-                data["probability"] = probabilities
-            else:
-                for i in range(probabilities.shape[1]):
-                    data[f"probability_class_{i}"] = probabilities[:, i]
-
-        if indices is not None:
-            data["index"] = indices
-
-        df = pd.DataFrame(data)
-        predictions_file = self.output_dir / "predictions.csv"
-        df.to_csv(predictions_file, index=False)
-
-        logger.info(f"Predictions exported to {predictions_file}")
-        return str(predictions_file)
-
-    def _export_object(self, obj: Any, file_path: Path, format: str) -> None:
-        """Export object to file."""
-        if format == "joblib":
-            joblib.dump(obj, file_path)
-        elif format == "pickle":
-            with open(file_path, "wb") as f:
-                pickle.dump(obj, f)
-        else:
-            raise ValueError(f"Unsupported format: {format}")
-
-    def create_export_summary(self, exported_files: Dict[str, str]) -> str:
-        """Create export summary."""
-        summary = "# Export Summary\n\n"
-        summary += f"Exported {len(exported_files)} files to {self.output_dir}:\n\n"
-
-        for file_type, file_path in exported_files.items():
-            summary += f"- **{file_type}**: `{file_path}`\n"
-
-        summary += f"\nExport completed at {pd.Timestamp.now().isoformat()}\n"
-
-        summary_file = self.output_dir / "export_summary.md"
-        with open(summary_file, "w") as f:
-            f.write(summary)
-
-        return str(summary_file)
-
-
-def export_pipeline(
-    preprocessor: Any,
-    model: Any,
-    task_type: TaskType,
-    feature_names: List[str],
-    output_dir: Path,
-    target_name: Optional[str] = None,
-    format: str = "joblib",
-) -> Dict[str, str]:
-    """Export complete ML pipeline."""
-    exporter = ArtifactExporter(output_dir)
-    return exporter.export_pipeline(
-        preprocessor, model, task_type, feature_names, target_name, format
-    )
+        logger.info(f"Cleaned up {len(artifacts) - keep_last_n} old artifacts")

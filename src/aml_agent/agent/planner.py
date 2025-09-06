@@ -1,69 +1,59 @@
 """
-LLM-guided planning for hyperparameter optimization strategy.
+LLM-guided planning for autonomous ML optimization.
 """
 
 import json
-from dataclasses import dataclass
+import random
 from typing import Any, Dict, List, Optional
+
+import httpx
+from pydantic import BaseModel
 
 from ..logging import get_logger
 from ..types import (
     DatasetProfile,
-    EnsembleConfig,
     LLMConfig,
     MetricType,
     ModelType,
     PlannerProposal,
     TaskType,
 )
-from ..utils import get_memory_usage
 
 logger = get_logger()
 
 
-@dataclass
-class PlanningContext:
-    """Context for LLM planning."""
+class PlanningContext(BaseModel):
+    """Context for planning optimization strategy."""
 
     dataset_profile: DatasetProfile
     task_type: TaskType
     available_models: List[ModelType]
-    time_budget_seconds: float
-    memory_usage_mb: float
-    historical_performance: Optional[Dict[str, float]] = None
+    time_budget_seconds: int
+    current_metric: Optional[MetricType] = None
+    previous_results: Optional[Dict[str, Any]] = None
 
 
 class LLMPlanner:
-    """LLM-guided planning for optimization strategy."""
+    """LLM-guided planner for optimization strategy."""
 
-    def __init__(self, config: LLMConfig):
-        self.config = config
-        self.llm_client = None
-        self._initialize_llm()
+    def __init__(self, llm_config: LLMConfig):
+        self.llm_config = llm_config
+        self.client = None
+        if llm_config.enabled and llm_config.api_key:
+            self._initialize_client()
 
-    def _initialize_llm(self):
-        """Initialize LLM client if available."""
-        if not self.config.enabled:
-            return
-
-        try:
-            if self.config.provider == "openai":
-                import openai
-
-                self.llm_client = openai.OpenAI(api_key=self.config.api_key)
-            elif self.config.provider == "gemini":
-                import google.generativeai as genai
-
-                genai.configure(api_key=self.config.api_key)
-                self.llm_client = genai.GenerativeModel(self.config.model)
-            else:
-                logger.warning(f"Unknown LLM provider: {self.config.provider}")
-        except ImportError as e:
-            logger.warning(f"LLM library not available: {e}")
-            self.llm_client = None
-        except Exception as e:
-            logger.warning(f"Failed to initialize LLM: {e}")
-            self.llm_client = None
+    def _initialize_client(self):
+        """Initialize HTTP client for LLM API."""
+        if self.llm_config.provider == "openai":
+            self.client = httpx.AsyncClient(
+                base_url="https://api.openai.com/v1",
+                headers={"Authorization": f"Bearer {self.llm_config.api_key}"},
+            )
+        elif self.llm_config.provider == "gemini":
+            self.client = httpx.AsyncClient(
+                base_url="https://generativelanguage.googleapis.com/v1beta",
+                headers={"Authorization": f"Bearer {self.llm_config.api_key}"},
+            )
 
     def create_plan(self, context: PlanningContext) -> PlannerProposal:
         """
@@ -73,98 +63,122 @@ class LLMPlanner:
             context: Planning context
 
         Returns:
-            Planner proposal
+            Optimization plan proposal
         """
-        if self.llm_client and self.config.enabled:
-            return self._llm_guided_plan(context)
+        if self.llm_config.enabled and self.client:
+            return self._create_llm_plan(context)
         else:
-            return self._heuristic_plan(context)
+            return self._create_heuristic_plan(context)
 
-    def _llm_guided_plan(self, context: PlanningContext) -> PlannerProposal:
-        """Create plan using LLM guidance."""
+    def _create_llm_plan(self, context: PlanningContext) -> PlannerProposal:
+        """Create plan using LLM."""
         try:
-            prompt = self._create_planning_prompt(context)
+            prompt = self._build_planning_prompt(context)
             response = self._call_llm(prompt)
             return self._parse_llm_response(response, context)
         except Exception as e:
             logger.warning(f"LLM planning failed: {e}, falling back to heuristics")
-            return self._heuristic_plan(context)
+            return self._create_heuristic_plan(context)
 
-    def _heuristic_plan(self, context: PlanningContext) -> PlannerProposal:
+    def _create_heuristic_plan(self, context: PlanningContext) -> PlannerProposal:
         """Create plan using heuristic rules."""
-        logger.info("Using heuristic planning strategy")
+        logger.info("Creating heuristic optimization plan")
 
-        # Select models based on task type and dataset characteristics
+        # Select models based on dataset characteristics
         candidate_models = self._select_models_heuristic(context)
 
         # Allocate search budget
-        search_budgets = self._allocate_budget_heuristic(
-            candidate_models, context.time_budget_seconds
-        )
+        search_budgets = self._allocate_budget_heuristic(candidate_models, context)
 
         # Select metric
         metric = self._select_metric_heuristic(context)
 
         # Determine ensemble strategy
-        ensemble_strategy = self._determine_ensemble_heuristic(context)
+        ensemble_strategy = self._determine_ensemble_strategy_heuristic(context)
 
         return PlannerProposal(
             candidate_models=candidate_models,
             search_budgets=search_budgets,
             metric=metric,
             ensemble_strategy=ensemble_strategy,
-            reasoning="Heuristic-based planning",
+            reasoning="Heuristic-based plan using dataset characteristics",
         )
 
     def _select_models_heuristic(self, context: PlanningContext) -> List[ModelType]:
         """Select models using heuristic rules."""
         models = []
+        profile = context.dataset_profile
 
-        # Always include linear models for baseline
-        if context.task_type == TaskType.CLASSIFICATION:
-            models.append(ModelType.LOGISTIC_REGRESSION)
-        else:
-            models.append(ModelType.LINEAR_REGRESSION)
+        # Always include basic models
+        models.extend(
+            [
+                ModelType.LOGISTIC_REGRESSION,
+                ModelType.RANDOM_FOREST,
+            ]
+        )
 
-        # Add tree-based models for non-linear patterns
-        models.append(ModelType.RANDOM_FOREST)
-        models.append(ModelType.GRADIENT_BOOSTING)
+        # Add regression models for regression tasks
+        if context.task_type == TaskType.REGRESSION:
+            models.extend(
+                [
+                    ModelType.LINEAR_REGRESSION,
+                    ModelType.GRADIENT_BOOSTING,
+                ]
+            )
 
-        # Add k-NN for local patterns
-        models.append(ModelType.KNN)
+        # Add advanced models for larger datasets
+        if profile.n_rows > 1000:
+            models.extend(
+                [
+                    ModelType.XGBOOST,
+                    ModelType.LIGHTGBM,
+                ]
+            )
 
-        # Add MLP for complex patterns (if dataset is large enough)
-        if context.dataset_profile.n_rows > 1000:
+        # Add MLP for complex patterns
+        if profile.n_cols > 10:
             models.append(ModelType.MLP)
 
-        return models
+        # Add kNN for smaller datasets
+        if profile.n_rows < 10000:
+            models.append(ModelType.KNN)
+
+        # Filter to available models
+        available_models = [m for m in models if m in context.available_models]
+
+        # Ensure we have at least 3 models
+        if len(available_models) < 3:
+            available_models.extend(context.available_models[:3])
+            available_models = list(set(available_models))
+
+        return available_models[:5]  # Limit to 5 models
 
     def _allocate_budget_heuristic(
-        self, models: List[ModelType], total_budget: float
+        self, models: List[ModelType], context: PlanningContext
     ) -> Dict[ModelType, int]:
-        """Allocate search budget using heuristics."""
-        # Base trials per model
-        base_trials = {
-            ModelType.LOGISTIC_REGRESSION: 10,
-            ModelType.LINEAR_REGRESSION: 5,
-            ModelType.RANDOM_FOREST: 15,
-            ModelType.GRADIENT_BOOSTING: 20,
-            ModelType.KNN: 10,
-            ModelType.MLP: 15,
-        }
+        """Allocate search budget across models."""
+        total_trials = min(50, context.time_budget_seconds // 10)  # Rough estimate
+        n_models = len(models)
 
-        # Scale based on total budget
-        scale_factor = min(1.0, total_budget / 300)  # Scale based on 5-minute budget
-
+        # Allocate more trials to promising models
         budgets = {}
-        for model in models:
-            trials = int(base_trials.get(model, 10) * scale_factor)
-            budgets[model] = max(1, trials)
+        base_trials = total_trials // n_models
+
+        for i, model in enumerate(models):
+            # Give more trials to ensemble methods
+            if model in [ModelType.XGBOOST, ModelType.LIGHTGBM, ModelType.CATBOOST]:
+                multiplier = 1.5
+            elif model in [ModelType.RANDOM_FOREST, ModelType.GRADIENT_BOOSTING]:
+                multiplier = 1.2
+            else:
+                multiplier = 1.0
+
+            budgets[model] = int(base_trials * multiplier)
 
         return budgets
 
     def _select_metric_heuristic(self, context: PlanningContext) -> MetricType:
-        """Select metric using heuristics."""
+        """Select metric using heuristic rules."""
         if context.task_type == TaskType.CLASSIFICATION:
             # Check for class imbalance
             if (
@@ -177,102 +191,135 @@ class LLMPlanner:
         else:
             return MetricType.R2
 
-    def _determine_ensemble_heuristic(
+    def _determine_ensemble_strategy_heuristic(
         self, context: PlanningContext
-    ) -> Optional[EnsembleConfig]:
+    ) -> Optional[Dict[str, Any]]:
         """Determine ensemble strategy using heuristics."""
-        # Enable ensembling if we have enough models and time
-        if len(context.available_models) >= 3 and context.time_budget_seconds > 300:
-            return EnsembleConfig(method="voting", top_k=3)
+        # Enable ensembling for larger datasets
+        if context.dataset_profile.n_rows > 500:
+            return {
+                "method": "voting",
+                "top_k": 3,
+                "meta_learner": None,
+            }
         return None
 
-    def _create_planning_prompt(self, context: PlanningContext) -> str:
-        """Create prompt for LLM planning."""
+    def _build_planning_prompt(self, context: PlanningContext) -> str:
+        """Build prompt for LLM planning."""
         prompt = f"""
-You are an expert ML engineer planning a hyperparameter optimization strategy.
+You are an expert ML engineer tasked with creating an optimization plan for an autonomous ML system.
 
 Dataset Profile:
-- Rows: {context.dataset_profile.n_rows:,}
+- Rows: {context.dataset_profile.n_rows}
 - Features: {context.dataset_profile.n_cols}
 - Numeric features: {context.dataset_profile.n_numeric}
 - Categorical features: {context.dataset_profile.n_categorical}
-- Missing data: {context.dataset_profile.missing_ratio:.1%}
+- Missing ratio: {context.dataset_profile.missing_ratio:.2%}
+- Class balance: {context.dataset_profile.class_balance}
 - Task type: {context.task_type.value}
-- Class balance: {context.dataset_profile.class_balance or 'N/A'}
 
-Constraints:
-- Time budget: {context.time_budget_seconds}s
-- Memory usage: {context.memory_usage_mb:.1f} MB
-- Available models: {[m.value for m in context.available_models]}
+Available models: {[m.value for m in context.available_models]}
+Time budget: {context.time_budget_seconds} seconds
 
 Please provide a JSON response with:
-1. candidate_models: List of model types to try
-2. search_budgets: Number of trials per model
-3. metric: Primary metric to optimize
-4. ensemble_strategy: Whether to use ensembling and which method
-5. reasoning: Brief explanation of your choices
+1. candidate_models: List of 3-5 model types to try
+2. search_budgets: Dictionary mapping model types to number of trials
+3. metric: Primary evaluation metric
+4. ensemble_strategy: Optional ensemble configuration
+5. reasoning: Brief explanation of choices
 
-Focus on efficiency and effectiveness given the constraints.
+Example response:
+{{
+    "candidate_models": ["random_forest", "xgboost", "logistic_regression"],
+    "search_budgets": {{"random_forest": 15, "xgboost": 20, "logistic_regression": 10}},
+    "metric": "f1",
+    "ensemble_strategy": {{"method": "voting", "top_k": 3}},
+    "reasoning": "Selected ensemble methods for complex dataset with mixed features"
+}}
 """
         return prompt
 
-    def _call_llm(self, prompt: str) -> str:
-        """Call LLM with prompt."""
-        if self.config.provider == "openai":
-            response = self.llm_client.chat.completions.create(
-                model=self.config.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
-            )
-            return response.choices[0].message.content
-        elif self.config.provider == "gemini":
-            response = self.llm_client.generate_content(prompt)
-            return response.text
+    async def _call_llm(self, prompt: str) -> str:
+        """Call LLM API."""
+        if self.llm_config.provider == "openai":
+            return await self._call_openai(prompt)
+        elif self.llm_config.provider == "gemini":
+            return await self._call_gemini(prompt)
         else:
-            raise ValueError(f"Unknown LLM provider: {self.config.provider}")
+            raise ValueError(f"Unsupported LLM provider: {self.llm_config.provider}")
+
+    async def _call_openai(self, prompt: str) -> str:
+        """Call OpenAI API."""
+        response = await self.client.post(
+            "/chat/completions",
+            json={
+                "model": self.llm_config.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": self.llm_config.temperature,
+                "max_tokens": self.llm_config.max_tokens,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
+
+    async def _call_gemini(self, prompt: str) -> str:
+        """Call Gemini API."""
+        response = await self.client.post(
+            f"/models/{self.llm_config.model}:generateContent",
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": self.llm_config.temperature,
+                    "maxOutputTokens": self.llm_config.max_tokens,
+                },
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"]
 
     def _parse_llm_response(
         self, response: str, context: PlanningContext
     ) -> PlannerProposal:
-        """Parse LLM response into planner proposal."""
+        """Parse LLM response into proposal."""
         try:
             # Extract JSON from response
             json_start = response.find("{")
             json_end = response.rfind("}") + 1
-            if json_start == -1 or json_end == 0:
-                raise ValueError("No JSON found in response")
-
             json_str = response[json_start:json_end]
+
             data = json.loads(json_str)
 
-            # Parse candidate models
+            # Convert model names to ModelType enums
             candidate_models = []
-            for model_str in data.get("candidate_models", []):
+            for model_name in data.get("candidate_models", []):
                 try:
-                    candidate_models.append(ModelType(model_str))
+                    model_type = ModelType(model_name)
+                    if model_type in context.available_models:
+                        candidate_models.append(model_type)
                 except ValueError:
-                    logger.warning(f"Unknown model type: {model_str}")
+                    logger.warning(f"Unknown model type: {model_name}")
 
-            # Parse search budgets
+            # Convert search budgets
             search_budgets = {}
-            for model_str, budget in data.get("search_budgets", {}).items():
+            for model_name, budget in data.get("search_budgets", {}).items():
                 try:
-                    search_budgets[ModelType(model_str)] = int(budget)
-                except (ValueError, KeyError):
-                    logger.warning(f"Invalid budget for model {model_str}")
+                    model_type = ModelType(model_name)
+                    search_budgets[model_type] = int(budget)
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid budget for {model_name}: {budget}")
 
-            # Parse metric
-            metric = MetricType(data.get("metric", "auto"))
+            # Convert metric
+            metric = MetricType.F1  # Default
+            metric_name = data.get("metric", "f1")
+            try:
+                metric = MetricType(metric_name)
+            except ValueError:
+                logger.warning(f"Unknown metric: {metric_name}")
 
             # Parse ensemble strategy
-            ensemble_strategy = None
-            ensemble_data = data.get("ensemble_strategy")
-            if ensemble_data:
-                ensemble_strategy = EnsembleConfig(
-                    method=ensemble_data.get("method", "voting"),
-                    top_k=ensemble_data.get("top_k", 3),
-                )
+            ensemble_strategy = data.get("ensemble_strategy")
 
             return PlannerProposal(
                 candidate_models=candidate_models,
@@ -283,29 +330,21 @@ Focus on efficiency and effectiveness given the constraints.
             )
 
         except Exception as e:
-            logger.warning(f"Failed to parse LLM response: {e}")
-            return self._heuristic_plan(context)
+            logger.error(f"Failed to parse LLM response: {e}")
+            logger.error(f"Response: {response}")
+            raise
 
-    def update_plan(
-        self, context: PlanningContext, current_results: List[Dict[str, Any]]
-    ) -> PlannerProposal:
-        """Update plan based on current results."""
-        # This could be implemented to dynamically adjust strategy
-        # based on intermediate results
-        return self.create_plan(context)
-
-
-def create_planner(config: LLMConfig) -> LLMPlanner:
-    """Create LLM planner with configuration."""
-    return LLMPlanner(config)
+    async def close(self):
+        """Close HTTP client."""
+        if self.client:
+            await self.client.aclose()
 
 
 def create_planning_context(
     dataset_profile: DatasetProfile,
     task_type: TaskType,
     available_models: List[ModelType],
-    time_budget_seconds: float,
-    historical_performance: Optional[Dict[str, float]] = None,
+    time_budget_seconds: int,
 ) -> PlanningContext:
     """Create planning context."""
     return PlanningContext(
@@ -313,6 +352,9 @@ def create_planning_context(
         task_type=task_type,
         available_models=available_models,
         time_budget_seconds=time_budget_seconds,
-        memory_usage_mb=get_memory_usage(),
-        historical_performance=historical_performance,
     )
+
+
+def create_planner(llm_config: LLMConfig) -> LLMPlanner:
+    """Create planner instance."""
+    return LLMPlanner(llm_config)

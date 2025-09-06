@@ -2,30 +2,29 @@
 Data transformers for preprocessing pipeline.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.compose import ColumnTransformer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.impute import SimpleImputer
-from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import (
     LabelEncoder,
     MinMaxScaler,
     OneHotEncoder,
+    RobustScaler,
     StandardScaler,
-    TargetEncoder,
 )
 
 from ..logging import get_logger
-from ..types import EncodingMethod, ImputationMethod
+from ..types import EncodingMethod, ImputationMethod, OutlierMethod
 
 logger = get_logger()
 
 
 class ImputationTransformer(BaseEstimator, TransformerMixin):
-    """Handle missing values with different strategies."""
+    """Handle missing value imputation for both numeric and categorical data."""
 
     def __init__(
         self,
@@ -36,450 +35,472 @@ class ImputationTransformer(BaseEstimator, TransformerMixin):
         self.categorical_strategy = categorical_strategy
         self.numeric_imputer = None
         self.categorical_imputer = None
-        self.numeric_columns = []
-        self.categorical_columns = []
-        self.feature_names_in_ = None
-        self.feature_names_out_ = None
+        self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y=None):
-        """Fit imputers on training data."""
-        # Store input feature names
-        self.feature_names_in_ = list(X.columns)
-
-        # Detect column types
-        self.numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
-        self.categorical_columns = X.select_dtypes(
+        """Fit imputation transformers."""
+        # Separate numeric and categorical columns
+        numeric_cols = X.select_dtypes(include=[np.number]).columns.tolist()
+        categorical_cols = X.select_dtypes(
             include=["object", "category"]
         ).columns.tolist()
 
-        # Create imputers
-        if self.numeric_columns:
-            numeric_strategy = (
-                self.numeric_strategy.value
-                if hasattr(self.numeric_strategy, "value")
-                else self.numeric_strategy
-            )
-            self.numeric_imputer = SimpleImputer(
-                strategy=numeric_strategy, keep_empty_features=True
-            )
-            self.numeric_imputer.fit(X[self.numeric_columns])
+        # Fit numeric imputer
+        if numeric_cols:
+            strategy_map = {
+                ImputationMethod.MEDIAN: "median",
+                ImputationMethod.MEAN: "mean",
+                ImputationMethod.MODE: "most_frequent",
+            }
+            strategy = strategy_map.get(self.numeric_strategy, "median")
+            self.numeric_imputer = SimpleImputer(strategy=strategy)
+            self.numeric_imputer.fit(X[numeric_cols])
 
-        if self.categorical_columns:
-            categorical_strategy = (
-                self.categorical_strategy.value
-                if hasattr(self.categorical_strategy, "value")
-                else self.categorical_strategy
-            )
-            self.categorical_imputer = SimpleImputer(
-                strategy=categorical_strategy, keep_empty_features=True
-            )
-            self.categorical_imputer.fit(X[self.categorical_columns])
+        # Fit categorical imputer
+        if categorical_cols:
+            strategy_map = {
+                ImputationMethod.MOST_FREQUENT: "most_frequent",
+                ImputationMethod.MODE: "most_frequent",
+            }
+            strategy = strategy_map.get(self.categorical_strategy, "most_frequent")
+            self.categorical_imputer = SimpleImputer(strategy=strategy)
+            self.categorical_imputer.fit(X[categorical_cols])
 
-        # Output feature names are the same as input for imputation
-        self.feature_names_out_ = self.feature_names_in_.copy()
-
+        self.is_fitted = True
+        self.feature_names_in_ = X.columns.tolist()
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Transform data by imputing missing values."""
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before transform")
+
         X_transformed = X.copy()
 
-        if self.numeric_imputer and self.numeric_columns:
-            X_transformed[self.numeric_columns] = self.numeric_imputer.transform(
-                X[self.numeric_columns]
-            )
+        # Transform numeric columns
+        if self.numeric_imputer is not None:
+            numeric_cols = X.select_dtypes(include=[np.number]).columns.tolist()
+            if numeric_cols:
+                X_transformed[numeric_cols] = self.numeric_imputer.transform(
+                    X[numeric_cols]
+                )
 
-        if self.categorical_imputer and self.categorical_columns:
-            X_transformed[self.categorical_columns] = (
-                self.categorical_imputer.transform(X[self.categorical_columns])
-            )
+        # Transform categorical columns
+        if self.categorical_imputer is not None:
+            categorical_cols = X.select_dtypes(
+                include=["object", "category"]
+            ).columns.tolist()
+            if categorical_cols:
+                X_transformed[categorical_cols] = self.categorical_imputer.transform(
+                    X[categorical_cols]
+                )
 
         return X_transformed
 
     def get_feature_names_out(self, input_features=None):
         """Get output feature names for transformation."""
-        if self.feature_names_out_ is not None:
-            return self.feature_names_out_
-        elif input_features is not None:
-            return list(input_features)
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before get_feature_names_out")
+
+        if input_features is None:
+            return self.feature_names_in_
         else:
-            return [f"feature_{i}" for i in range(len(self.feature_names_in_))]
+            return input_features
+
+    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+        """Fit and transform in one step."""
+        return self.fit(X, y).transform(X)
 
 
 class CategoricalEncoder(BaseEstimator, TransformerMixin):
-    """Encode categorical variables."""
+    """Encode categorical variables using various methods."""
 
     def __init__(
         self,
         method: EncodingMethod = EncodingMethod.ONEHOT,
         max_categories: int = 50,
-        target_encoder_cv: int = 5,
+        handle_unknown: str = "ignore",
     ):
         self.method = method
         self.max_categories = max_categories
-        self.target_encoder_cv = target_encoder_cv
+        self.handle_unknown = handle_unknown
         self.encoders = {}
-        self.categorical_columns = []
-        self.encoded_columns = []
+        self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y=None):
-        """Fit encoders on training data."""
-        self.categorical_columns = X.select_dtypes(
+        """Fit encoders for categorical columns."""
+        categorical_cols = X.select_dtypes(
             include=["object", "category"]
         ).columns.tolist()
-        self.encoded_columns = []
 
-        for col in self.categorical_columns:
-            unique_vals = X[col].nunique()
-
-            if unique_vals > self.max_categories:
-                logger.warning(
-                    f"Column {col} has {unique_vals} unique values, "
-                    f"exceeding max_categories={self.max_categories}"
-                )
-                continue
-
+        for col in categorical_cols:
             if self.method == EncodingMethod.ONEHOT:
-                encoder = OneHotEncoder(
-                    handle_unknown="ignore", sparse_output=False, drop="first"
+                # Filter categories if too many
+                unique_vals = X[col].value_counts()
+                if len(unique_vals) > self.max_categories:
+                    top_categories = unique_vals.head(
+                        self.max_categories
+                    ).index.tolist()
+                    X[col] = X[col].where(X[col].isin(top_categories), "other")
+
+                self.encoders[col] = OneHotEncoder(
+                    handle_unknown=self.handle_unknown,
+                    sparse_output=False,
                 )
-                encoder.fit(X[[col]])
-                self.encoders[col] = encoder
-
-                # Get encoded column names
-                feature_names = encoder.get_feature_names_out([col])
-                self.encoded_columns.extend(feature_names)
-
-            elif self.method == EncodingMethod.TARGET and y is not None:
-                encoder = TargetEncoder(cv=self.target_encoder_cv, random_state=42)
-                encoder.fit(X[col], y)
-                self.encoders[col] = encoder
-                self.encoded_columns.append(col)
+                self.encoders[col].fit(X[[col]])
 
             elif self.method == EncodingMethod.ORDINAL:
-                encoder = LabelEncoder()
-                encoder.fit(X[col])
-                self.encoders[col] = encoder
-                self.encoded_columns.append(col)
+                self.encoders[col] = LabelEncoder()
+                self.encoders[col].fit(X[col].astype(str))
 
+        self.is_fitted = True
+        self.feature_names_in_ = X.columns.tolist()
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Transform categorical data."""
+        """Transform categorical columns."""
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before transform")
+
         X_transformed = X.copy()
+        categorical_cols = X.select_dtypes(
+            include=["object", "category"]
+        ).columns.tolist()
 
-        for col, encoder in self.encoders.items():
-            if self.method == EncodingMethod.ONEHOT:
-                encoded = encoder.transform(X[[col]])
-                feature_names = encoder.get_feature_names_out([col])
+        for col in categorical_cols:
+            if col in self.encoders:
+                if self.method == EncodingMethod.ONEHOT:
+                    # Get one-hot encoded columns
+                    encoded = self.encoders[col].transform(X[[col]])
+                    feature_names = self.encoders[col].get_feature_names_out([col])
 
-                # Add encoded columns
-                for i, feature_name in enumerate(feature_names):
-                    X_transformed[feature_name] = encoded[:, i].astype(float)
+                    # Create DataFrame with encoded columns
+                    encoded_df = pd.DataFrame(
+                        encoded, columns=feature_names, index=X.index
+                    )
 
-                # Drop original column
-                X_transformed = X_transformed.drop(columns=[col])
+                    # Drop original column and add encoded ones
+                    X_transformed = X_transformed.drop(columns=[col])
+                    X_transformed = pd.concat([X_transformed, encoded_df], axis=1)
 
-            elif self.method in [EncodingMethod.TARGET, EncodingMethod.ORDINAL]:
-                X_transformed[col] = encoder.transform(X[col]).astype(float)
+                elif self.method == EncodingMethod.ORDINAL:
+                    # Replace with encoded values
+                    X_transformed[col] = self.encoders[col].transform(
+                        X[col].astype(str)
+                    )
 
         return X_transformed
 
     def get_feature_names_out(self, input_features=None):
         """Get output feature names for transformation."""
-        if self.encoded_columns:
-            return self.encoded_columns
-        elif input_features is not None:
-            return list(input_features)
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before get_feature_names_out")
+
+        if input_features is None:
+            return self.feature_names_in_
         else:
-            return [
-                f"feature_{i}"
-                for i in range(len(input_features) if input_features else 0)
-            ]
+            return input_features
+
+    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+        """Fit and transform in one step."""
+        return self.fit(X, y).transform(X)
 
 
 class DateTimeExpander(BaseEstimator, TransformerMixin):
     """Expand datetime columns into multiple features."""
 
-    def __init__(
-        self,
-        expand_year: bool = True,
-        expand_month: bool = True,
-        expand_day: bool = True,
-        expand_dow: bool = True,
-        expand_hour: bool = True,
-    ):
-        self.expand_year = expand_year
-        self.expand_month = expand_month
-        self.expand_day = expand_day
-        self.expand_dow = expand_dow
-        self.expand_hour = expand_hour
+    def __init__(self):
         self.datetime_columns = []
-        self.expanded_columns = []
+        self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y=None):
         """Fit datetime expander."""
         self.datetime_columns = X.select_dtypes(include=["datetime64"]).columns.tolist()
-        self.expanded_columns = []
-
-        for col in self.datetime_columns:
-            if self.expand_year:
-                self.expanded_columns.append(f"{col}_year")
-            if self.expand_month:
-                self.expanded_columns.append(f"{col}_month")
-            if self.expand_day:
-                self.expanded_columns.append(f"{col}_day")
-            if self.expand_dow:
-                self.expanded_columns.append(f"{col}_dow")
-            if self.expand_hour:
-                self.expanded_columns.append(f"{col}_hour")
-
+        self.is_fitted = True
+        self.feature_names_in_ = X.columns.tolist()
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Transform datetime columns."""
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before transform")
+
         X_transformed = X.copy()
 
         for col in self.datetime_columns:
-            dt_series = pd.to_datetime(X[col])
+            if col in X.columns:
+                # Extract datetime components
+                X_transformed[f"{col}_year"] = X[col].dt.year
+                X_transformed[f"{col}_month"] = X[col].dt.month
+                X_transformed[f"{col}_day"] = X[col].dt.day
+                X_transformed[f"{col}_dayofweek"] = X[col].dt.dayofweek
+                X_transformed[f"{col}_hour"] = X[col].dt.hour
+                X_transformed[f"{col}_minute"] = X[col].dt.minute
 
-            if self.expand_year:
-                X_transformed[f"{col}_year"] = dt_series.dt.year
-            if self.expand_month:
-                X_transformed[f"{col}_month"] = dt_series.dt.month
-            if self.expand_day:
-                X_transformed[f"{col}_day"] = dt_series.dt.day
-            if self.expand_dow:
-                X_transformed[f"{col}_dow"] = dt_series.dt.dayofweek
-            if self.expand_hour:
-                X_transformed[f"{col}_hour"] = dt_series.dt.hour
-
-            # Drop original datetime column
-            X_transformed = X_transformed.drop(columns=[col])
+                # Drop original datetime column
+                X_transformed = X_transformed.drop(columns=[col])
 
         return X_transformed
 
     def get_feature_names_out(self, input_features=None):
         """Get output feature names for transformation."""
-        if self.expanded_columns:
-            return self.expanded_columns
-        elif input_features is not None:
-            return list(input_features)
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before get_feature_names_out")
+
+        if input_features is None:
+            return self.feature_names_in_
         else:
-            return []
+            return input_features
+
+    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+        """Fit and transform in one step."""
+        return self.fit(X, y).transform(X)
 
 
 class FeatureScaler(BaseEstimator, TransformerMixin):
-    """Scale numeric features."""
+    """Scale features using various scaling methods."""
 
-    def __init__(self, method: str = "standard", columns: Optional[List[str]] = None):
+    def __init__(self, method: str = "standard"):
         self.method = method
-        self.columns = columns
         self.scaler = None
-        self.scaled_columns = []
+        self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y=None):
-        """Fit scaler on training data."""
-        if self.columns is None:
-            self.scaled_columns = X.select_dtypes(include=[np.number]).columns.tolist()
-        else:
-            self.scaled_columns = [col for col in self.columns if col in X.columns]
-
-        if not self.scaled_columns:
-            return self
-
+        """Fit scaler."""
         if self.method == "standard":
             self.scaler = StandardScaler()
+        elif self.method == "robust":
+            self.scaler = RobustScaler()
         elif self.method == "minmax":
             self.scaler = MinMaxScaler()
         else:
             raise ValueError(f"Unknown scaling method: {self.method}")
 
-        self.scaler.fit(X[self.scaled_columns])
+        self.scaler.fit(X)
+        self.is_fitted = True
+        self.feature_names_in_ = X.columns.tolist()
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Transform data by scaling features."""
-        X_transformed = X.copy()
+        """Transform data using fitted scaler."""
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before transform")
 
-        if self.scaler and self.scaled_columns:
-            X_transformed[self.scaled_columns] = self.scaler.transform(
-                X[self.scaled_columns]
-            )
-
-        return X_transformed
+        X_scaled = self.scaler.transform(X)
+        return pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
 
     def get_feature_names_out(self, input_features=None):
         """Get output feature names for transformation."""
-        if input_features is not None:
-            return list(input_features)
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before get_feature_names_out")
+
+        if input_features is None:
+            return self.feature_names_in_
         else:
-            return [
-                f"feature_{i}"
-                for i in range(len(self.scaled_columns) if self.scaled_columns else 0)
-            ]
+            return input_features
+
+    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+        """Fit and transform in one step."""
+        return self.fit(X, y).transform(X)
 
 
 class OutlierHandler(BaseEstimator, TransformerMixin):
-    """Handle outliers in numeric columns."""
+    """Handle outliers in numeric data."""
 
-    def __init__(
-        self,
-        method: str = "clip",
-        outlier_indices: Optional[Dict[str, np.ndarray]] = None,
-    ):
+    def __init__(self, method: str = "clip", outlier_indices: Optional[set] = None):
         self.method = method
-        self.outlier_indices = outlier_indices or {}
-        self.numeric_columns = []
-        self.clip_values = {}
+        self.outlier_indices = outlier_indices or set()
+        self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y=None):
         """Fit outlier handler."""
-        self.numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
-
-        if self.method == "clip":
-            # Calculate clip values based on IQR
-            for col in self.numeric_columns:
-                Q1 = X[col].quantile(0.25)
-                Q3 = X[col].quantile(0.75)
-                IQR = Q3 - Q1
-                self.clip_values[col] = {
-                    "lower": Q1 - 1.5 * IQR,
-                    "upper": Q3 + 1.5 * IQR,
-                }
-
+        self.is_fitted = True
+        self.feature_names_in_ = X.columns.tolist()
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Transform data by handling outliers."""
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before transform")
+
         X_transformed = X.copy()
 
         if self.method == "clip":
-            for col in self.numeric_columns:
-                if col in self.clip_values:
-                    clip_vals = self.clip_values[col]
-                    X_transformed[col] = X_transformed[col].clip(
-                        lower=clip_vals["lower"], upper=clip_vals["upper"]
-                    )
+            # Clip outliers to IQR bounds
+            for col in X.select_dtypes(include=[np.number]).columns:
+                Q1 = X[col].quantile(0.25)
+                Q3 = X[col].quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - 1.5 * IQR
+                upper_bound = Q3 + 1.5 * IQR
+                X_transformed[col] = X_transformed[col].clip(lower_bound, upper_bound)
 
         elif self.method == "remove":
-            # Remove rows with outliers
-            outlier_mask = np.zeros(len(X), dtype=bool)
-            for col, indices in self.outlier_indices.items():
-                if col in X.columns:
-                    outlier_mask[indices] = True
+            # Remove outlier rows
+            outlier_mask = X.index.isin(self.outlier_indices)
             X_transformed = X_transformed[~outlier_mask]
 
         return X_transformed
 
     def get_feature_names_out(self, input_features=None):
         """Get output feature names for transformation."""
-        if input_features is not None:
-            return list(input_features)
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before get_feature_names_out")
+
+        if input_features is None:
+            return self.feature_names_in_
         else:
-            return [
-                f"feature_{i}"
-                for i in range(len(self.numeric_columns) if self.numeric_columns else 0)
-            ]
+            return input_features
+
+    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+        """Fit and transform in one step."""
+        return self.fit(X, y).transform(X)
 
 
-class PreprocessingPipeline:
-    """Complete preprocessing pipeline."""
+class TextFeatureExtractor(BaseEstimator, TransformerMixin):
+    """Extract features from text columns."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {}
-        self.pipeline = None
-        self.column_transformer = None
-        self.feature_names_ = []
+    def __init__(self, max_features: int = 100, min_df: int = 2):
+        self.max_features = max_features
+        self.min_df = min_df
+        self.vectorizer = None
+        self.text_columns = []
+        self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y=None):
-        """Fit preprocessing pipeline."""
-        # Create transformers
-        transformers = []
+        """Fit text feature extractor."""
+        # Identify text columns (long string columns)
+        self.text_columns = []
+        for col in X.columns:
+            if X[col].dtype == "object":
+                avg_length = X[col].astype(str).str.len().mean()
+                if avg_length > 20:  # Arbitrary threshold
+                    self.text_columns.append(col)
 
-        # Imputation
-        imputation = ImputationTransformer(
-            numeric_strategy=self.config.get("impute_numeric", ImputationMethod.MEDIAN),
-            categorical_strategy=self.config.get(
-                "impute_categorical", ImputationMethod.MOST_FREQUENT
-            ),
-        )
-
-        # DateTime expansion
-        if self.config.get("datetime_expansion", True):
-            datetime_expander = DateTimeExpander()
-            transformers.append(
-                (
-                    "datetime",
-                    datetime_expander,
-                    X.select_dtypes(include=["datetime64"]).columns.tolist(),
-                )
+        if self.text_columns:
+            # Combine all text columns
+            text_data = (
+                X[self.text_columns].fillna("").astype(str).agg(" ".join, axis=1)
             )
 
-        # Categorical encoding
-        categorical_encoder = CategoricalEncoder(
-            method=self.config.get("encode_categorical", EncodingMethod.ONEHOT),
-            max_categories=self.config.get("max_categories", 50),
-        )
-
-        # Feature scaling
-        if self.config.get("scale_features", True):
-            feature_scaler = FeatureScaler(
-                method=self.config.get("scaling_method", "standard")
+            self.vectorizer = TfidfVectorizer(
+                max_features=self.max_features,
+                min_df=self.min_df,
+                stop_words="english",
             )
+            self.vectorizer.fit(text_data)
 
-        # Create column transformer
-        self.column_transformer = ColumnTransformer(
-            transformers=transformers, remainder="passthrough"
-        )
-
-        # Create pipeline
-        pipeline_steps = [
-            ("imputation", imputation),
-            ("categorical_encoding", categorical_encoder),
-        ]
-
-        if self.config.get("scale_features", True):
-            pipeline_steps.append(("scaling", feature_scaler))
-
-        self.pipeline = Pipeline(pipeline_steps)
-
-        # Fit pipeline
-        X_processed = self.column_transformer.fit_transform(X)
-        self.pipeline.fit(X_processed, y)
-
-        # Store feature names
-        self.feature_names_ = self._get_feature_names(X)
-
+        self.is_fitted = True
+        self.feature_names_in_ = X.columns.tolist()
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Transform data through pipeline."""
-        # Apply column transformer
-        X_processed = self.column_transformer.transform(X)
+        """Transform text columns."""
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before transform")
 
-        # Apply pipeline
-        X_transformed = self.pipeline.transform(X_processed)
+        X_transformed = X.copy()
 
-        # Convert to DataFrame
-        if hasattr(self.pipeline, "get_feature_names_out"):
-            feature_names = self.pipeline.get_feature_names_out()
+        if self.text_columns and self.vectorizer is not None:
+            # Combine text columns
+            text_data = (
+                X[self.text_columns].fillna("").astype(str).agg(" ".join, axis=1)
+            )
+
+            # Extract features
+            text_features = self.vectorizer.transform(text_data)
+            feature_names = [f"text_feature_{i}" for i in range(text_features.shape[1])]
+
+            # Create DataFrame with text features
+            text_df = pd.DataFrame(
+                text_features.toarray(), columns=feature_names, index=X.index
+            )
+
+            # Remove original text columns and add features
+            X_transformed = X_transformed.drop(columns=self.text_columns)
+            X_transformed = pd.concat([X_transformed, text_df], axis=1)
+
+        return X_transformed
+
+    def get_feature_names_out(self, input_features=None):
+        """Get output feature names for transformation."""
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before get_feature_names_out")
+
+        if input_features is None:
+            return self.feature_names_in_
         else:
-            feature_names = [f"feature_{i}" for i in range(X_transformed.shape[1])]
-
-        return pd.DataFrame(X_transformed, columns=feature_names, index=X.index)
+            return input_features
 
     def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
-        """Fit and transform data."""
+        """Fit and transform in one step."""
         return self.fit(X, y).transform(X)
 
-    def _get_feature_names(self, X: pd.DataFrame) -> List[str]:
-        """Get feature names after transformation."""
-        if hasattr(self.pipeline, "get_feature_names_out"):
-            return self.pipeline.get_feature_names_out().tolist()
-        else:
-            return [f"feature_{i}" for i in range(X.shape[1])]
 
-    def get_feature_names_out(self) -> List[str]:
-        """Get output feature names."""
-        return self.feature_names_
+class FeatureSelector(BaseEstimator, TransformerMixin):
+    """Select most important features."""
+
+    def __init__(self, method: str = "variance", k: int = 100):
+        self.method = method
+        self.k = k
+        self.selector = None
+        self.selected_features = []
+        self.is_fitted = False
+
+    def fit(self, X: pd.DataFrame, y=None):
+        """Fit feature selector."""
+        if self.method == "variance":
+            from sklearn.feature_selection import VarianceThreshold
+
+            self.selector = VarianceThreshold(threshold=0.01)
+            self.selector.fit(X)
+            self.selected_features = X.columns[self.selector.get_support()].tolist()
+
+        elif self.method == "k_best":
+            from sklearn.feature_selection import SelectKBest, f_classif, f_regression
+
+            # Determine scoring function based on task type
+            if y is not None:
+                if len(np.unique(y)) < 10:  # Classification
+                    score_func = f_classif
+                else:  # Regression
+                    score_func = f_regression
+            else:
+                score_func = f_classif
+
+            self.selector = SelectKBest(
+                score_func=score_func, k=min(self.k, X.shape[1])
+            )
+            self.selector.fit(X, y)
+            self.selected_features = X.columns[self.selector.get_support()].tolist()
+
+        self.is_fitted = True
+        self.feature_names_in_ = X.columns.tolist()
+        return self
+
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Transform data by selecting features."""
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before transform")
+
+        if self.selector is not None:
+            X_selected = self.selector.transform(X)
+            return pd.DataFrame(
+                X_selected, columns=self.selected_features, index=X.index
+            )
+        else:
+            return X
+
+    def get_feature_names_out(self, input_features=None):
+        """Get output feature names for transformation."""
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before get_feature_names_out")
+
+        if input_features is None:
+            return self.feature_names_in_
+        else:
+            return input_features
+
+    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+        """Fit and transform in one step."""
+        return self.fit(X, y).transform(X)

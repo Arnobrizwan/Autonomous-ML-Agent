@@ -1,424 +1,397 @@
 """
-Model card generation for the Autonomous ML Agent.
+Model card generation for ML models.
 """
 
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
-import numpy as np
 import pandas as pd
-from sklearn.metrics import confusion_matrix
+from sklearn.base import BaseEstimator
+from sklearn.metrics import classification_report, confusion_matrix
 
-from ..interpret.explain import ModelExplainer
-from ..interpret.importance import FeatureImportanceAnalyzer
 from ..logging import get_logger
-from ..types import DatasetProfile, LLMConfig, ModelCard, TaskType, TrialResult
+from ..types import TaskType
 
 logger = get_logger()
 
-# Try to import LLM libraries
-try:
-    import openai
-
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-
-try:
-    import google.generativeai as genai
-
-    GEMINI_AVAILABLE = True
-except ImportError:
-    GEMINI_AVAILABLE = False
-
 
 class ModelCardGenerator:
-    """Generate comprehensive model cards with LLM assistance."""
+    """Generate comprehensive model cards for ML models."""
 
-    def __init__(self, llm_config: Optional[LLMConfig] = None):
-        self.llm_config = llm_config
-        self.importance_analyzer = FeatureImportanceAnalyzer()
-        self.explainer = ModelExplainer()
+    def __init__(self, task_type: TaskType):
+        self.task_type = task_type
 
-        # Initialize LLM if available
-        self.llm_client = None
-        if llm_config and llm_config.enabled:
-            self._initialize_llm()
-
-    def _initialize_llm(self):
-        """Initialize LLM client."""
-        try:
-            if self.llm_config.provider == "openai" and OPENAI_AVAILABLE:
-                self.llm_client = openai.OpenAI(api_key=self.llm_config.api_key)
-            elif self.llm_config.provider == "gemini" and GEMINI_AVAILABLE:
-                genai.configure(api_key=self.llm_config.api_key)
-                self.llm_client = genai.GenerativeModel(self.llm_config.model)
-            else:
-                logger.warning(f"LLM provider {self.llm_config.provider} not available")
-        except Exception as e:
-            logger.warning(f"Failed to initialize LLM: {e}")
-
-    def generate_card(
+    def generate_model_card(
         self,
-        trial_results: List[TrialResult],
-        ensemble_model: Optional[Any] = None,
-        task_type: TaskType = TaskType.CLASSIFICATION,
-        dataset_profile: Optional[DatasetProfile] = None,
-        model: Optional[Any] = None,
-        X: Optional[pd.DataFrame] = None,
-        y: Optional[pd.Series] = None,
-    ) -> ModelCard:
+        model: BaseEstimator,
+        X: pd.DataFrame,
+        y: pd.Series,
+        y_pred: Optional[pd.Series] = None,
+        y_prob: Optional[pd.DataFrame] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        feature_importance: Optional[Dict[str, Any]] = None,
+        save_path: Optional[str] = None,
+    ) -> str:
         """
-        Generate comprehensive model card.
+        Generate a comprehensive model card.
 
         Args:
-            trial_results: List of trial results
-            ensemble_model: Ensemble model (optional)
-            task_type: Task type
-            dataset_profile: Dataset profile
-            model: Single model (optional)
-            X: Feature matrix (optional)
-            y: Target vector (optional)
+            model: Trained model
+            X: Feature matrix
+            y: True target values
+            y_pred: Predicted values (if None, will predict)
+            y_prob: Predicted probabilities (if None, will predict if available)
+            metadata: Additional metadata
+            feature_importance: Feature importance data
+            save_path: Path to save model card
 
         Returns:
-            Model card object
+            Model card content as string
         """
-        logger.info("Generating model card")
+        # Generate predictions if not provided
+        if y_pred is None:
+            y_pred = model.predict(X)
 
-        # Get best model
-        best_result = (
-            max(trial_results, key=lambda x: x.score) if trial_results else None
-        )
-        model_name = (
-            "Ensemble"
-            if ensemble_model
-            else (best_result.model_type.value if best_result else "Unknown")
-        )
+        if y_prob is None and hasattr(model, "predict_proba"):
+            y_prob = pd.DataFrame(model.predict_proba(X))
 
-        # Calculate performance metrics
-        performance_metrics = self._calculate_performance_metrics(
-            trial_results, ensemble_model, model, X, y, task_type
-        )
-
-        # Get feature importance
-        feature_importance = self._get_feature_importance(
-            ensemble_model or model, X, y, task_type
-        )
-
-        # Get top features
-        top_features = self._get_top_features(feature_importance)
-
-        # Generate confusion matrix for classification
-        confusion_mat = None
-        if (
-            task_type == TaskType.CLASSIFICATION
-            and model
-            and X is not None
-            and y is not None
-        ):
-            try:
-                y_pred = model.predict(X)
-                confusion_mat = confusion_matrix(y, y_pred)
-            except Exception as e:
-                logger.warning(f"Failed to generate confusion matrix: {e}")
-
-        # Generate LLM summary if available
-        llm_summary = self._generate_llm_summary(
-            trial_results, performance_metrics, dataset_profile, task_type
-        )
-
-        # Create model card
-        model_card = ModelCard(
-            model_name=model_name,
-            model_type=best_result.model_type if best_result else None,
-            task_type=task_type,
-            performance_metrics=performance_metrics,
-            feature_importance=feature_importance,
-            confusion_matrix=confusion_mat,
-            top_features=top_features,
-            limitations=self._generate_limitations(dataset_profile, task_type),
-            recommendations=self._generate_recommendations(
-                performance_metrics, task_type
+        # Generate model card sections
+        card_sections = {
+            "header": self._generate_header(model, metadata),
+            "model_details": self._generate_model_details(model, X, y),
+            "performance": self._generate_performance_section(y, y_pred, y_prob),
+            "data_info": self._generate_data_info(X, y),
+            "feature_importance": self._generate_feature_importance_section(
+                feature_importance
             ),
-            created_at=datetime.now(),
-        )
+            "usage": self._generate_usage_section(),
+            "limitations": self._generate_limitations_section(),
+            "footer": self._generate_footer(),
+        }
 
-        # Add LLM summary if available
-        if llm_summary:
-            model_card.recommendations.append(f"LLM Analysis: {llm_summary}")
+        # Combine sections
+        model_card = self._combine_sections(card_sections)
+
+        # Save if path provided
+        if save_path:
+            self._save_model_card(model_card, save_path)
 
         return model_card
 
-    def _calculate_performance_metrics(
-        self,
-        trial_results: List[TrialResult],
-        ensemble_model: Optional[Any],
-        model: Optional[Any],
-        X: Optional[pd.DataFrame],
-        y: Optional[pd.Series],
-        task_type: TaskType,
-    ) -> Dict[str, float]:
-        """Calculate performance metrics."""
-        metrics = {}
+    def _generate_header(
+        self, model: BaseEstimator, metadata: Optional[Dict[str, Any]]
+    ) -> str:
+        """Generate model card header."""
+        model_name = type(model).__name__
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        if trial_results:
-            # Get metrics from best trial
-            best_result = max(trial_results, key=lambda x: x.score)
-            metrics.update(
-                {
-                    "best_score": best_result.score,
-                    "cv_mean": (
-                        np.mean(best_result.cv_scores) if best_result.cv_scores else 0
-                    ),
-                    "cv_std": (
-                        np.std(best_result.cv_scores) if best_result.cv_scores else 0
-                    ),
-                    "fit_time": best_result.fit_time,
-                    "predict_time": best_result.predict_time,
-                }
-            )
+        header = f"""# Model Card: {model_name}
 
-        # Calculate additional metrics if model and data available
-        if model and X is not None and y is not None:
-            try:
-                from ..models.train_eval import evaluate_model
+**Generated on:** {timestamp}  
+**Task Type:** {self.task_type.value.title()}  
+**Model Type:** {model_name}  
 
-                additional_metrics = evaluate_model(model, X, y, task_type)
-                metrics.update(additional_metrics)
-            except Exception as e:
-                logger.warning(f"Failed to calculate additional metrics: {e}")
+## Overview
+
+This model card provides comprehensive information about the trained machine learning model, including its performance, limitations, and usage guidelines.
+
+"""
+        return header
+
+    def _generate_model_details(
+        self, model: BaseEstimator, X: pd.DataFrame, y: pd.Series
+    ) -> str:
+        """Generate model details section."""
+        details = f"""## Model Details
+
+### Architecture
+- **Model Type:** {type(model).__name__}
+- **Module:** {type(model).__module__}
+- **Task:** {self.task_type.value.title()}
+
+### Parameters
+"""
+
+        # Add model parameters
+        try:
+            params = model.get_params()
+            for key, value in params.items():
+                if isinstance(value, (str, int, float, bool)):
+                    details += f"- **{key}:** {value}\n"
+                elif isinstance(value, (list, tuple)) and len(str(value)) < 100:
+                    details += f"- **{key}:** {value}\n"
+        except Exception as e:
+            details += f"- **Error loading parameters:** {e}\n"
+
+        details += f"""
+### Training Data
+- **Number of samples:** {X.shape[0]:,}
+- **Number of features:** {X.shape[1]:,}
+- **Feature types:** {self._get_feature_types(X)}
+
+"""
+        return details
+
+    def _generate_performance_section(
+        self, y: pd.Series, y_pred: pd.Series, y_prob: Optional[pd.DataFrame]
+    ) -> str:
+        """Generate performance metrics section."""
+        performance = "## Performance Metrics\n\n"
+
+        if self.task_type == TaskType.CLASSIFICATION:
+            performance += self._generate_classification_metrics(y, y_pred, y_prob)
+        else:
+            performance += self._generate_regression_metrics(y, y_pred)
+
+        return performance
+
+    def _generate_classification_metrics(
+        self, y: pd.Series, y_pred: pd.Series, y_prob: Optional[pd.DataFrame]
+    ) -> str:
+        """Generate classification metrics."""
+        from sklearn.metrics import (
+            accuracy_score,
+            f1_score,
+            precision_score,
+            recall_score,
+        )
+
+        accuracy = accuracy_score(y, y_pred)
+        precision = precision_score(y, y_pred, average="weighted", zero_division=0)
+        recall = recall_score(y, y_pred, average="weighted", zero_division=0)
+        f1 = f1_score(y, y_pred, average="weighted", zero_division=0)
+
+        metrics = f"""### Classification Metrics
+- **Accuracy:** {accuracy:.4f}
+- **Precision (weighted):** {precision:.4f}
+- **Recall (weighted):** {recall:.4f}
+- **F1-Score (weighted):** {f1:.4f}
+
+### Detailed Classification Report
+```
+{classification_report(y, y_pred, zero_division=0)}
+```
+
+### Confusion Matrix
+```
+{confusion_matrix(y, y_pred)}
+```
+
+"""
+
+        # Add probability metrics if available
+        if y_prob is not None:
+            metrics += f"""### Probability Calibration
+- **Mean predicted probability:** {y_prob.mean().mean():.4f}
+- **Probability std:** {y_prob.std().mean():.4f}
+
+"""
 
         return metrics
 
-    def _get_feature_importance(
-        self,
-        model: Optional[Any],
-        X: Optional[pd.DataFrame],
-        y: Optional[pd.Series],
-        task_type: TaskType,
-    ) -> Dict[str, float]:
-        """Get feature importance."""
-        if not model or X is None or y is None:
-            return {}
+    def _generate_regression_metrics(self, y: pd.Series, y_pred: pd.Series) -> str:
+        """Generate regression metrics."""
+        from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-        try:
-            return self.importance_analyzer.get_feature_importance(model, X, y)
-        except Exception as e:
-            logger.warning(f"Failed to get feature importance: {e}")
-            return {}
+        mae = mean_absolute_error(y, y_pred)
+        mse = mean_squared_error(y, y_pred)
+        rmse = mse**0.5
+        r2 = r2_score(y, y_pred)
 
-    def _get_top_features(self, feature_importance: Dict[str, float]) -> List[str]:
-        """Get top features."""
+        metrics = f"""### Regression Metrics
+- **Mean Absolute Error (MAE):** {mae:.4f}
+- **Mean Squared Error (MSE):** {mse:.4f}
+- **Root Mean Squared Error (RMSE):** {rmse:.4f}
+- **R² Score:** {r2:.4f}
+
+### Prediction Statistics
+- **Mean prediction:** {y_pred.mean():.4f}
+- **Std prediction:** {y_pred.std():.4f}
+- **Min prediction:** {y_pred.min():.4f}
+- **Max prediction:** {y_pred.max():.4f}
+
+"""
+        return metrics
+
+    def _generate_data_info(self, X: pd.DataFrame, y: pd.Series) -> str:
+        """Generate data information section."""
+        data_info = f"""## Data Information
+
+### Dataset Characteristics
+- **Total samples:** {X.shape[0]:,}
+- **Features:** {X.shape[1]:,}
+- **Target distribution:** {self._get_target_distribution(y)}
+
+### Feature Statistics
+"""
+
+        # Add feature statistics
+        numeric_features = X.select_dtypes(include=["number"]).columns
+        if len(numeric_features) > 0:
+            data_info += f"- **Numeric features:** {len(numeric_features)}\n"
+            data_info += f"- **Mean values:** {X[numeric_features].mean().mean():.4f}\n"
+            data_info += f"- **Std values:** {X[numeric_features].std().mean():.4f}\n"
+
+        categorical_features = X.select_dtypes(include=["object", "category"]).columns
+        if len(categorical_features) > 0:
+            data_info += f"- **Categorical features:** {len(categorical_features)}\n"
+
+        data_info += f"- **Missing values:** {X.isnull().sum().sum():,} ({X.isnull().sum().sum() / (X.shape[0] * X.shape[1]) * 100:.2f}%)\n"
+
+        data_info += "\n"
+        return data_info
+
+    def _generate_feature_importance_section(
+        self, feature_importance: Optional[Dict[str, Any]]
+    ) -> str:
+        """Generate feature importance section."""
         if not feature_importance:
-            return []
+            return (
+                "## Feature Importance\n\n*Feature importance data not available.*\n\n"
+            )
 
-        top_features = sorted(
-            feature_importance.items(), key=lambda x: x[1], reverse=True
-        )[:10]
+        importance_section = "## Feature Importance\n\n"
 
-        return [feature for feature, _ in top_features]
-
-    def _generate_limitations(
-        self, dataset_profile: Optional[DatasetProfile], task_type: TaskType
-    ) -> List[str]:
-        """Generate model limitations."""
-        limitations = []
-
-        if dataset_profile:
-            if dataset_profile.missing_ratio > 0.1:
-                limitations.append(
-                    f"High missing data ratio ({dataset_profile.missing_ratio:.1%}) may affect performance"
-                )
-
-            if dataset_profile.n_rows < 1000:
-                limitations.append("Small dataset size may limit model generalization")
-
-            if (
-                task_type == TaskType.CLASSIFICATION
-                and dataset_profile.class_balance
-                and dataset_profile.class_balance < 0.3
+        if "sorted_features" in feature_importance:
+            importance_section += "### Top 10 Most Important Features\n\n"
+            for i, feature_info in enumerate(
+                feature_importance["sorted_features"][:10], 1
             ):
-                limitations.append("Class imbalance may affect model performance")
+                importance_section += f"{i}. **{feature_info['feature']}**: {feature_info['importance']:.4f}\n"
+        else:
+            importance_section += (
+                f"**Method:** {feature_importance.get('method', 'unknown')}\n"
+            )
+            importance_section += (
+                f"**Type:** {feature_importance.get('type', 'unknown')}\n"
+            )
 
-        limitations.append(
-            "Model performance may vary on data from different distributions"
-        )
-        limitations.append("Feature importance may not reflect causal relationships")
+        importance_section += "\n"
+        return importance_section
 
+    def _generate_usage_section(self) -> str:
+        """Generate usage section."""
+        usage = """## Usage
+
+### Loading the Model
+```python
+import joblib
+model = joblib.load('pipeline.joblib')
+```
+
+### Making Predictions
+```python
+# For new data
+predictions = model.predict(new_data)
+
+# For probabilities (classification only)
+if hasattr(model, 'predict_proba'):
+    probabilities = model.predict_proba(new_data)
+```
+
+### Preprocessing
+The model includes built-in preprocessing. Ensure your input data has the same structure as the training data.
+
+"""
+        return usage
+
+    def _generate_limitations_section(self) -> str:
+        """Generate limitations section."""
+        limitations = """## Limitations and Considerations
+
+### Model Limitations
+- This model was trained on a specific dataset and may not generalize to different data distributions
+- Performance may degrade on data with significantly different characteristics
+- The model assumes similar preprocessing steps for new data
+
+### Data Requirements
+- Input data should have the same feature structure as training data
+- Missing values should be handled consistently with training preprocessing
+- Feature types should match the expected input format
+
+### Performance Considerations
+- Model performance is based on the specific evaluation metrics used during training
+- Cross-validation results may not reflect performance on completely unseen data
+- Consider retraining if data distribution changes significantly
+
+"""
         return limitations
 
-    def _generate_recommendations(
-        self, performance_metrics: Dict[str, float], task_type: TaskType
-    ) -> List[str]:
-        """Generate model recommendations."""
-        recommendations = []
+    def _generate_footer(self) -> str:
+        """Generate model card footer."""
+        footer = f"""---
 
-        # Performance-based recommendations
-        best_score = performance_metrics.get("best_score", 0)
+*This model card was automatically generated by the Autonomous ML Agent on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.*
 
-        if best_score < 0.7:
-            recommendations.append(
-                "Consider collecting more data or feature engineering to improve performance"
-            )
+For questions or issues, please refer to the model documentation or contact the development team.
+"""
+        return footer
 
-        if performance_metrics.get("cv_std", 0) > 0.1:
-            recommendations.append(
-                "High variance in CV scores suggests model instability - consider regularization"
-            )
+    def _get_feature_types(self, X: pd.DataFrame) -> str:
+        """Get feature type summary."""
+        numeric_count = len(X.select_dtypes(include=["number"]).columns)
+        categorical_count = len(X.select_dtypes(include=["object", "category"]).columns)
+        datetime_count = len(X.select_dtypes(include=["datetime64"]).columns)
 
-        # Task-specific recommendations
-        if task_type == TaskType.CLASSIFICATION:
-            if performance_metrics.get("precision", 0) < performance_metrics.get(
-                "recall", 0
-            ):
-                recommendations.append(
-                    "Low precision suggests many false positives - consider threshold tuning"
-                )
-            elif performance_metrics.get("recall", 0) < performance_metrics.get(
-                "precision", 0
-            ):
-                recommendations.append(
-                    "Low recall suggests many false negatives - consider class balancing"
-                )
+        types = []
+        if numeric_count > 0:
+            types.append(f"{numeric_count} numeric")
+        if categorical_count > 0:
+            types.append(f"{categorical_count} categorical")
+        if datetime_count > 0:
+            types.append(f"{datetime_count} datetime")
 
-        recommendations.append("Monitor model performance on new data regularly")
-        recommendations.append("Consider retraining with more recent data if available")
+        return ", ".join(types) if types else "unknown"
 
-        return recommendations
+    def _get_target_distribution(self, y: pd.Series) -> str:
+        """Get target distribution summary."""
+        if self.task_type == TaskType.CLASSIFICATION:
+            value_counts = y.value_counts()
+            if len(value_counts) <= 5:
+                return f"Classes: {dict(value_counts)}"
+            else:
+                return f"{len(value_counts)} classes, most common: {value_counts.iloc[0]} ({value_counts.iloc[0]/len(y)*100:.1f}%)"
+        else:
+            return f"Mean: {y.mean():.4f}, Std: {y.std():.4f}, Range: [{y.min():.4f}, {y.max():.4f}]"
 
-    def _generate_llm_summary(
+    def _combine_sections(self, sections: Dict[str, str]) -> str:
+        """Combine all sections into final model card."""
+        return "".join(sections.values())
+
+    def _save_model_card(self, model_card: str, save_path: str) -> None:
+        """Save model card to file."""
+        path = Path(save_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(path, "w") as f:
+            f.write(model_card)
+
+        logger.info(f"Model card saved to {path}")
+
+    def generate_summary_card(
         self,
-        trial_results: List[TrialResult],
-        performance_metrics: Dict[str, float],
-        dataset_profile: Optional[DatasetProfile],
-        task_type: TaskType,
-    ) -> Optional[str]:
-        """Generate LLM summary of model performance."""
-        if not self.llm_client or not self.llm_config.enabled:
-            return None
-
-        try:
-            # Create prompt
-            prompt = self._create_llm_prompt(
-                trial_results, performance_metrics, dataset_profile, task_type
-            )
-
-            # Call LLM
-            if self.llm_config.provider == "openai":
-                response = self.llm_client.chat.completions.create(
-                    model=self.llm_config.model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=self.llm_config.temperature,
-                    max_tokens=self.llm_config.max_tokens,
-                )
-                return response.choices[0].message.content
-            elif self.llm_config.provider == "gemini":
-                response = self.llm_client.generate_content(prompt)
-                return response.text
-        except Exception as e:
-            logger.warning(f"LLM summary generation failed: {e}")
-
-        return None
-
-    def _create_llm_prompt(
-        self,
-        trial_results: List[TrialResult],
-        performance_metrics: Dict[str, float],
-        dataset_profile: Optional[DatasetProfile],
-        task_type: TaskType,
+        model: BaseEstimator,
+        X: pd.DataFrame,
+        y: pd.Series,
+        y_pred: pd.Series,
+        score: float,
     ) -> str:
-        """Create prompt for LLM summary."""
-        prompt = f"""
-Analyze this machine learning model performance and provide a concise summary:
+        """Generate a brief summary model card."""
+        summary = f"""# Model Summary
 
-Task Type: {task_type.value}
-Dataset: {dataset_profile.n_rows if dataset_profile else 'Unknown'} rows, \
-{dataset_profile.n_cols if dataset_profile else 'Unknown'} features
-Best Score: {performance_metrics.get('best_score', 0):.4f}
-CV Mean: {performance_metrics.get('cv_mean', 0):.4f} ± {performance_metrics.get('cv_std', 0):.4f}
+**Model:** {type(model).__name__}  
+**Task:** {self.task_type.value.title()}  
+**Score:** {score:.4f}  
+**Samples:** {X.shape[0]:,}  
+**Features:** {X.shape[1]:,}  
 
-Performance Metrics:
-{json.dumps(performance_metrics, indent=2)}
+## Quick Stats
+- **Accuracy/R²:** {score:.4f}
+- **Data size:** {X.shape[0]:,} samples × {X.shape[1]:,} features
+- **Model type:** {type(model).__name__}
 
-Top Features: {', '.join(self._get_top_features(performance_metrics.get('feature_importance', {})))}
-
-Provide a brief analysis of:
-1. Model performance quality
-2. Key strengths and weaknesses
-3. Recommendations for improvement
-
-Keep response under 200 words.
+Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 """
-        return prompt
-
-    def save_card(self, model_card: ModelCard, output_path: Path) -> None:
-        """Save model card to markdown file."""
-        markdown_content = self._generate_markdown(model_card)
-
-        with open(output_path, "w") as f:
-            f.write(markdown_content)
-
-        logger.info(f"Model card saved to {output_path}")
-
-    def _generate_markdown(self, model_card: ModelCard) -> str:
-        """Generate markdown content for model card."""
-        content = f"""# Model Card: {model_card.model_name}
-
-## Model Information
-- **Model Type**: {model_card.model_type.value if model_card.model_type else 'Unknown'}
-- **Task Type**: {model_card.task_type.value}
-- **Created**: {model_card.created_at.strftime('%Y-%m-%d %H:%M:%S')}
-
-## Performance Metrics
-"""
-
-        # Add performance metrics
-        for metric, value in model_card.performance_metrics.items():
-            content += f"- **{metric.replace('_', ' ').title()}**: {value:.4f}\n"
-
-        # Add confusion matrix for classification
-        if model_card.confusion_matrix is not None:
-            content += "\n## Confusion Matrix\n"
-            content += "```\n"
-            content += str(model_card.confusion_matrix)
-            content += "\n```\n"
-
-        # Add top features
-        if model_card.top_features:
-            content += "\n## Top Features\n"
-            for i, feature in enumerate(model_card.top_features, 1):
-                importance = model_card.feature_importance.get(feature, 0)
-                content += f"{i}. **{feature}**: {importance:.4f}\n"
-
-        # Add limitations
-        if model_card.limitations:
-            content += "\n## Limitations\n"
-            for limitation in model_card.limitations:
-                content += f"- {limitation}\n"
-
-        # Add recommendations
-        if model_card.recommendations:
-            content += "\n## Recommendations\n"
-            for recommendation in model_card.recommendations:
-                content += f"- {recommendation}\n"
-
-        return content
-
-
-def generate_model_card(
-    trial_results: List[TrialResult],
-    ensemble_model: Optional[Any] = None,
-    task_type: TaskType = TaskType.CLASSIFICATION,
-    dataset_profile: Optional[DatasetProfile] = None,
-    model: Optional[Any] = None,
-    X: Optional[pd.DataFrame] = None,
-    y: Optional[pd.Series] = None,
-    llm_config: Optional[LLMConfig] = None,
-) -> ModelCard:
-    """Generate model card."""
-    generator = ModelCardGenerator(llm_config)
-    return generator.generate_card(
-        trial_results, ensemble_model, task_type, dataset_profile, model, X, y
-    )
+        return summary

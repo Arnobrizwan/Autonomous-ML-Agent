@@ -1,328 +1,205 @@
 """
-Warm-start capabilities for hyperparameter optimization.
+Meta-learning warm start functionality for hyperparameter optimization.
 """
 
 from typing import Any, Dict, List, Optional
 
-import numpy as np
 import optuna
+from optuna.samplers import TPESampler
 
 from ..logging import get_logger
 from ..types import DatasetProfile, ModelType
 from .store import MetaStore
 
-# LLM integration for meta-learning
-try:
-    from ..agent.planner import LLMPlanner
-
-    LLM_AVAILABLE = True
-except ImportError:
-    LLM_AVAILABLE = False
-
 logger = get_logger()
 
 
 class WarmStartManager:
-    """Manage warm-start for hyperparameter optimization with LLM guidance."""
+    """Manages warm start functionality for hyperparameter optimization."""
 
-    def __init__(self, meta_store: MetaStore, llm_planner: Optional[LLMPlanner] = None):
+    def __init__(self, meta_store: MetaStore):
         self.meta_store = meta_store
-        self.llm_planner = llm_planner
 
-    def warm_start_study(
+    def get_warm_start_params(
+        self, model_type: ModelType, profile: DatasetProfile, top_k: int = 3
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get warm start parameters for a model type based on similar datasets.
+
+        Args:
+            model_type: Type of model to get parameters for
+            profile: Dataset profile to find similar datasets
+            top_k: Number of similar runs to consider
+
+        Returns:
+            Dictionary of warm start parameters or None
+        """
+        # Query similar datasets
+        similar_runs = self.meta_store.query_similar(profile, top_k=top_k)
+
+        if not similar_runs:
+            logger.info(f"No similar datasets found for {model_type.value}")
+            return None
+
+        # Get best parameters for this model type
+        best_params = self.meta_store.get_best_params(model_type.value, similar_runs)
+
+        if best_params:
+            logger.info(
+                f"Found warm start parameters for {model_type.value} from {len(similar_runs)} similar runs"
+            )
+            return best_params
+        else:
+            logger.info(f"No warm start parameters found for {model_type.value}")
+            return None
+
+    def create_warm_start_sampler(
+        self,
+        model_type: ModelType,
+        profile: DatasetProfile,
+        base_sampler: Optional[TPESampler] = None,
+    ) -> TPESampler:
+        """
+        Create a TPE sampler with warm start parameters.
+
+        Args:
+            model_type: Type of model
+            profile: Dataset profile
+            base_sampler: Base TPE sampler to extend
+
+        Returns:
+            TPE sampler with warm start parameters
+        """
+        warm_start_params = self.get_warm_start_params(model_type, profile)
+
+        if warm_start_params:
+            # Create sampler with warm start
+            sampler = TPESampler(
+                n_startup_trials=5,  # Reduced startup trials due to warm start
+                n_ei_candidates=24,
+                gamma=lambda n: min(25, n // 4),
+                prior_weight=1.0,
+                consider_magic_clip=True,
+                consider_endpoints=False,
+                multivariate=True,
+                warn_independent_sampling=True,
+                constant_liar=True,
+                constraints_func=None,
+                seed=None,
+            )
+
+            # Add warm start parameters as suggestions
+            if hasattr(sampler, "_warm_start_params"):
+                sampler._warm_start_params = warm_start_params
+
+            logger.info(f"Created warm start sampler for {model_type.value}")
+            return sampler
+        else:
+            # Return base sampler or create new one
+            if base_sampler:
+                return base_sampler
+            else:
+                return TPESampler(
+                    n_startup_trials=10,
+                    n_ei_candidates=24,
+                    gamma=lambda n: min(25, n // 4),
+                    prior_weight=1.0,
+                    consider_magic_clip=True,
+                    consider_endpoints=False,
+                    multivariate=True,
+                    warn_independent_sampling=True,
+                    constant_liar=True,
+                    constraints_func=None,
+                    seed=None,
+                )
+
+    def suggest_warm_start_trials(
         self,
         study: optuna.Study,
         model_type: ModelType,
-        dataset_profile: DatasetProfile,
-        n_warm_start_trials: int = 5,
-    ) -> None:
-        """
-        Warm-start a study with parameters from similar datasets.
-
-        Args:
-            study: Optuna study to warm-start
-            model_type: Model type
-            dataset_profile: Current dataset profile
-            n_warm_start_trials: Number of warm-start trials
-        """
-        # Get best parameters from similar datasets
-        best_params = self.meta_store.get_best_params_for_model(
-            model_type, dataset_profile
-        )
-
-        if not best_params:
-            logger.info(f"No warm-start parameters found for {model_type}")
-            return
-
-        logger.info(f"Warm-starting {model_type} with {n_warm_start_trials} trials")
-
-        # Create warm-start trials
-        warm_start_trials = self._create_warm_start_trials(
-            best_params, n_warm_start_trials, model_type
-        )
-
-        # Add trials to study
-        for trial_params in warm_start_trials:
-            try:
-                # Create a trial with suggested parameters
-                trial = study.ask()
-
-                # Set parameters
-                for param, value in trial_params.items():
-                    trial.set_user_attr(param, value)
-
-                # Complete the trial (will be evaluated later)
-                study.tell(trial, 0.0)  # Placeholder score
-
-            except Exception as e:
-                logger.warning(f"Failed to add warm-start trial: {e}")
-
-    def _create_warm_start_trials(
-        self, best_params: Dict[str, Any], n_trials: int, model_type: ModelType
+        profile: DatasetProfile,
+        n_trials: int = 3,
     ) -> List[Dict[str, Any]]:
-        """Create warm-start trials with parameter variations."""
-        trials = []
-
-        # Add exact best parameters
-        trials.append(best_params.copy())
-
-        # Create variations
-        for i in range(n_trials - 1):
-            trial_params = self._create_parameter_variation(best_params, model_type)
-            trials.append(trial_params)
-
-        return trials
-
-    def _create_parameter_variation(
-        self, base_params: Dict[str, Any], model_type: ModelType
-    ) -> Dict[str, Any]:
-        """Create parameter variation for warm-start."""
-        variation = base_params.copy()
-
-        # Apply variations based on parameter type
-        for param, value in base_params.items():
-            if isinstance(value, (int, float)):
-                # Numeric parameter - add small random variation
-                if isinstance(value, int):
-                    # Integer parameter
-                    variation[param] = max(1, int(value * np.random.uniform(0.8, 1.2)))
-                else:
-                    # Float parameter
-                    variation[param] = value * np.random.uniform(0.8, 1.2)
-            elif isinstance(value, str):
-                # String parameter - keep same or try alternatives
-                if param == "solver" and value in ["liblinear", "saga"]:
-                    variation[param] = np.random.choice(["liblinear", "saga"])
-                elif param == "penalty" and value in ["l1", "l2", "elasticnet"]:
-                    variation[param] = np.random.choice(["l1", "l2", "elasticnet"])
-                elif param == "weights" and value in ["uniform", "distance"]:
-                    variation[param] = np.random.choice(["uniform", "distance"])
-                # Keep other string parameters as is
-
-        return variation
-
-    def get_warm_start_suggestions(
-        self, model_type: ModelType, dataset_profile: DatasetProfile
-    ) -> Dict[str, Any]:
         """
-        Get warm-start suggestions for a model type.
+        Suggest warm start trials for a study.
 
         Args:
-            model_type: Model type
-            dataset_profile: Current dataset profile
+            study: Optuna study
+            model_type: Type of model
+            profile: Dataset profile
+            n_trials: Number of warm start trials to suggest
 
         Returns:
-            Dictionary with warm-start suggestions
+            List of suggested parameter dictionaries
         """
-        # Get similar datasets
-        similar_runs = self.meta_store.find_similar_datasets(dataset_profile)
+        warm_start_params = self.get_warm_start_params(model_type, profile)
 
-        if not similar_runs:
-            return {}
+        if not warm_start_params:
+            return []
 
-        # Analyze performance across similar datasets
-        model_performance = {}
+        suggestions = []
 
-        for run in similar_runs:
-            trial_summary = run.get("trial_summary", {})
-            run_model_perf = trial_summary.get("model_performance", {})
+        # Add the best parameters as first suggestion
+        suggestions.append(warm_start_params)
 
-            if model_type.value in run_model_perf:
-                perf = run_model_perf[model_type.value]
-                model_performance[run["run_id"]] = {
-                    "mean_score": perf["mean_score"],
-                    "std_score": perf["std_score"],
-                    "n_trials": perf["n_trials"],
-                    "best_params": run.get("best_params", {}).get(model_type.value, {}),
-                }
-
-        if not model_performance:
-            return {}
-
-        # Calculate statistics
-        scores = [perf["mean_score"] for perf in model_performance.values()]
-        best_run_id = max(
-            model_performance.keys(), key=lambda x: model_performance[x]["mean_score"]
-        )
-
-        return {
-            "model_type": model_type.value,
-            "similar_datasets": len(similar_runs),
-            "performance_stats": {
-                "mean_score": np.mean(scores),
-                "std_score": np.std(scores),
-                "best_score": max(scores),
-            },
-            "best_params": model_performance[best_run_id]["best_params"],
-            "confidence": min(
-                1.0, len(similar_runs) / 5.0
-            ),  # Confidence based on number of similar datasets
-        }
-
-    def should_use_warm_start(
-        self,
-        model_type: ModelType,
-        dataset_profile: DatasetProfile,
-        min_confidence: float = 0.3,
-    ) -> bool:
-        """
-        Determine if warm-start should be used for a model type.
-
-        Args:
-            model_type: Model type
-            dataset_profile: Current dataset profile
-            min_confidence: Minimum confidence threshold
-
-        Returns:
-            True if warm-start should be used
-        """
-        suggestions = self.get_warm_start_suggestions(model_type, dataset_profile)
-
-        if not suggestions:
-            return False
-
-        confidence = suggestions.get("confidence", 0.0)
-        return confidence >= min_confidence
-
-    def get_optimized_search_space(
-        self,
-        model_type: ModelType,
-        dataset_profile: DatasetProfile,
-        base_search_space: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """
-        Get optimized search space based on similar datasets.
-
-        Args:
-            model_type: Model type
-            dataset_profile: Current dataset profile
-            base_search_space: Base search space
-
-        Returns:
-            Optimized search space
-        """
-        suggestions = self.get_warm_start_suggestions(model_type, dataset_profile)
-
-        if not suggestions or suggestions.get("confidence", 0) < 0.5:
-            return base_search_space
-
-        # Get best parameters from similar datasets
-        best_params = suggestions.get("best_params", {})
-
-        if not best_params:
-            return base_search_space
-
-        # Create optimized search space around best parameters
-        optimized_space = {}
-
-        for param, value in best_params.items():
-            if param not in base_search_space:
-                continue
-
-            base_spec = base_search_space[param]
-
-            if isinstance(value, (int, float)):
-                # Numeric parameter - create range around best value
-                if isinstance(value, int):
-                    # Integer parameter
-                    range_factor = 0.5
-                    low = max(1, int(value * (1 - range_factor)))
-                    high = int(value * (1 + range_factor))
-                    optimized_space[param] = (low, high, "int")
-                else:
-                    # Float parameter
-                    range_factor = 0.3
-                    low = value * (1 - range_factor)
-                    high = value * (1 + range_factor)
-                    optimized_space[param] = (low, high, "uniform")
-            else:
-                # Keep original specification for non-numeric parameters
-                optimized_space[param] = base_spec
-
-        # Add any missing parameters from base space
-        for param, spec in base_search_space.items():
-            if param not in optimized_space:
-                optimized_space[param] = spec
+        # Add variations of the best parameters
+        for i in range(1, min(n_trials, 3)):
+            variation = self._create_parameter_variation(
+                warm_start_params, variation_factor=0.1 * i
+            )
+            if variation:
+                suggestions.append(variation)
 
         logger.info(
-            f"Optimized search space for {model_type} based on {suggestions['similar_datasets']} similar datasets"
+            f"Suggested {len(suggestions)} warm start trials for {model_type.value}"
         )
+        return suggestions
 
-        return optimized_space
+    def _create_parameter_variation(
+        self, base_params: Dict[str, Any], variation_factor: float = 0.1
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Create a variation of base parameters.
 
+        Args:
+            base_params: Base parameters to vary
+            variation_factor: Factor for variation (0.1 = 10% variation)
 
-def create_warmstart_manager(meta_store: MetaStore) -> WarmStartManager:
-    """Create warm-start manager."""
-    return WarmStartManager(meta_store)
+        Returns:
+            Varied parameters or None
+        """
+        try:
+            variation = {}
 
+            for key, value in base_params.items():
+                if isinstance(value, (int, float)):
+                    # Add random variation
+                    import random
 
-def warm_start_optuna_study(
-    study: optuna.Study,
-    model_type: ModelType,
-    dataset_profile: DatasetProfile,
-    meta_store: MetaStore,
-    n_warm_start_trials: int = 5,
-) -> None:
-    """Warm-start an Optuna study."""
-    manager = WarmStartManager(meta_store)
-    manager.warm_start_study(study, model_type, dataset_profile, n_warm_start_trials)
+                    variation_amount = abs(value) * variation_factor
+                    variation[key] = value + random.uniform(
+                        -variation_amount, variation_amount
+                    )
 
+                    # Ensure reasonable bounds
+                    if key in ["C", "alpha", "learning_rate"]:
+                        variation[key] = max(0.001, variation[key])
+                    elif key in [
+                        "n_estimators",
+                        "max_depth",
+                        "min_samples_split",
+                        "min_samples_leaf",
+                    ]:
+                        variation[key] = max(1, int(variation[key]))
+                else:
+                    # Keep categorical parameters as is
+                    variation[key] = value
 
-def get_warm_start_recommendations(
-    dataset_profile: DatasetProfile, meta_store: MetaStore
-) -> Dict[str, Any]:
-    """Get warm-start recommendations for all model types."""
-    recommendations = {}
+            return variation
+        except Exception as e:
+            logger.warning(f"Failed to create parameter variation: {e}")
+            return None
 
-    for model_type in ModelType:
-        manager = WarmStartManager(meta_store)
-        suggestions = manager.get_warm_start_suggestions(model_type, dataset_profile)
-
-        if suggestions:
-            recommendations[model_type.value] = suggestions
-
-    return recommendations
-
-
-def get_llm_guided_suggestions(
-    dataset_profile: DatasetProfile,
-    model_type: ModelType,
-    task_type: str,
-    meta_store: MetaStore,
-    llm_planner: Optional[LLMPlanner] = None,
-) -> Dict[str, Any]:
-    """Get LLM-guided hyperparameter suggestions."""
-    manager = WarmStartManager(meta_store, llm_planner)
-    return manager.get_llm_guided_suggestions(dataset_profile, model_type, task_type)
-
-
-def predict_model_performance(
-    dataset_profile: DatasetProfile,
-    model_type: ModelType,
-    hyperparameters: Dict[str, Any],
-    meta_store: MetaStore,
-    llm_planner: Optional[LLMPlanner] = None,
-) -> float:
-    """Predict model performance using meta-learning."""
-    manager = WarmStartManager(meta_store, llm_planner)
-    return manager.predict_performance(dataset_profile, model_type, hyperparameters)
+    def get_meta_learning_stats(self) -> Dict[str, Any]:
+        """Get meta-learning statistics."""
+        return self.meta_store.get_statistics()

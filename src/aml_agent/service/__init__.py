@@ -2,7 +2,7 @@
 FastAPI service module for the Autonomous ML Agent.
 """
 
-from .app import app, create_app
+from .app import app
 from .schemas import (
     BatchPredictionRequest,
     BatchPredictionResponse,
@@ -12,7 +12,6 @@ from .schemas import (
 )
 
 __all__ = [
-    "create_app",
     "app",
     "PredictionRequest",
     "PredictionResponse",

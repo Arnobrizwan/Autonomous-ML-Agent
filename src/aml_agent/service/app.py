@@ -1,25 +1,22 @@
 """
-FastAPI application for the Autonomous ML Agent.
+FastAPI service for serving ML models.
 """
 
 import json
-from datetime import datetime
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-import joblib
 import pandas as pd
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel, Field
 
+from ..export.artifact import ArtifactExporter
 from ..logging import get_logger
-from ..security import security_manager
-from .schemas import (
+from ..service.schemas import (
     BatchPredictionRequest,
     BatchPredictionResponse,
-    ErrorResponse,
     HealthResponse,
     ModelInfoResponse,
     PredictionRequest,
@@ -28,355 +25,275 @@ from .schemas import (
 
 logger = get_logger()
 
-# Security
-security = HTTPBearer(auto_error=False)
+# Global variables for loaded model
+loaded_pipeline = None
+loaded_metadata = None
+artifact_exporter = ArtifactExporter()
+
+app = FastAPI(
+    title="Autonomous ML Agent API",
+    description="API for serving machine learning models trained by the Autonomous ML Agent",
+    version="1.0.0",
+)
 
 
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    x_forwarded_for: Optional[str] = Header(None),
-) -> Optional[str]:
-    """Get current user from API key."""
-    api_key = None
-    if credentials:
-        api_key = credentials.credentials
-
-    # Get IP address
-    ip_address = x_forwarded_for.split(",")[0].strip() if x_forwarded_for else "unknown"
-
-    # Authenticate
-    if not security_manager.authenticate_request(api_key, ip_address):
-        raise HTTPException(status_code=401, detail="Authentication failed")
-
-    return api_key
+@app.on_event("startup")
+async def startup_event():
+    """Initialize the service on startup."""
+    global loaded_pipeline, loaded_metadata
+    logger.info("Starting Autonomous ML Agent API service")
 
 
-class ModelService:
-    """Service for managing and serving ML models."""
-
-    def __init__(self, artifacts_dir: Path):
-        self.artifacts_dir = artifacts_dir
-        self.model = None
-        self.preprocessor = None
-        self.metadata = {}
-        self.feature_names = []
-        self.is_loaded = False
-
-        # Load model and metadata
-        self._load_model()
-
-    def _load_model(self):
-        """Load model and metadata from artifacts directory."""
-        try:
-            # Load model
-            model_file = self.artifacts_dir / "model.joblib"
-            if not model_file.exists():
-                raise FileNotFoundError(f"Model file not found: {model_file}")
-
-            self.model = joblib.load(model_file)
-            logger.info(f"Loaded model from {model_file}")
-
-            # Load preprocessor
-            preprocessor_file = self.artifacts_dir / "preprocessor.joblib"
-            if preprocessor_file.exists():
-                self.preprocessor = joblib.load(preprocessor_file)
-                logger.info(f"Loaded preprocessor from {preprocessor_file}")
-
-            # Load metadata
-            metadata_file = self.artifacts_dir / "metadata.json"
-            if metadata_file.exists():
-                with open(metadata_file, "r") as f:
-                    self.metadata = json.load(f)
-                logger.info(f"Loaded metadata from {metadata_file}")
-
-            # Load feature names
-            feature_names_file = self.artifacts_dir / "feature_names.json"
-            if feature_names_file.exists():
-                with open(feature_names_file, "r") as f:
-                    self.feature_names = json.load(f)
-                logger.info(f"Loaded feature names: {self.feature_names}")
-            else:
-                # Fallback to model attributes
-                if hasattr(self.model, "n_features_in_"):
-                    self.feature_names = [
-                        f"feature_{i}" for i in range(self.model.n_features_in_)
-                    ]
-                else:
-                    self.feature_names = []
-                logger.info(f"Using fallback feature names: {self.feature_names}")
-
-            self.is_loaded = True
-            logger.info("Model service initialized successfully")
-
-        except Exception as e:
-            logger.error(f"Failed to load model: {e}")
-            raise
-
-    def predict_single(self, features: Dict[str, Any]) -> PredictionResponse:
-        """Make single prediction."""
-        if not self.is_loaded:
-            raise HTTPException(status_code=500, detail="Model not loaded")
-
-        try:
-            # Convert to DataFrame
-            df = pd.DataFrame([features])
-
-            # Validate features
-            self._validate_features(df)
-
-            # Preprocess if available
-            if self.preprocessor:
-                df = self.preprocessor.transform(df)
-
-            # Make prediction
-            prediction = self.model.predict(df)[0]
-
-            # Get probabilities if available
-            probabilities = None
-            if hasattr(self.model, "predict_proba"):
-                proba = self.model.predict_proba(df)[0]
-                probabilities = proba.tolist()
-
-            # Calculate confidence
-            confidence = None
-            if probabilities:
-                confidence = float(max(probabilities))
-
-            return PredictionResponse(
-                prediction=(
-                    float(prediction)
-                    if isinstance(prediction, (int, float))
-                    else prediction.tolist()
-                ),
-                confidence=confidence,
-                probabilities=probabilities,
-                model_type=self.metadata.get("model_type", "unknown"),
-            )
-
-        except Exception as e:
-            logger.error(f"Prediction failed: {e}")
-            raise HTTPException(status_code=400, detail=f"Prediction failed: {str(e)}")
-
-    def predict_batch(
-        self, data: Union[List[Dict[str, Any]], str]
-    ) -> BatchPredictionResponse:
-        """Make batch predictions."""
-        if not self.is_loaded:
-            raise HTTPException(status_code=500, detail="Model not loaded")
-
-        try:
-            # Convert data to DataFrame
-            if isinstance(data, str):
-                # CSV string
-                from io import StringIO
-
-                df = pd.read_csv(StringIO(data))
-            else:
-                # List of dictionaries
-                df = pd.DataFrame(data)
-
-            # Validate features
-            self._validate_features(df)
-
-            # Preprocess if available
-            if self.preprocessor:
-                df = self.preprocessor.transform(df)
-
-            # Make predictions
-            predictions = self.model.predict(df)
-
-            # Get probabilities if available
-            probabilities = None
-            if hasattr(self.model, "predict_proba"):
-                proba = self.model.predict_proba(df)
-                probabilities = proba.tolist()
-
-            # Calculate confidences
-            confidences = None
-            if probabilities:
-                confidences = [float(max(probs)) for probs in probabilities]
-
-            # Convert predictions to appropriate format
-            predictions_list = []
-            for pred in predictions:
-                if isinstance(pred, (int, float)):
-                    predictions_list.append(float(pred))
-                else:
-                    predictions_list.append(pred.tolist())
-
-            return BatchPredictionResponse(
-                predictions=predictions_list,
-                confidences=confidences,
-                probabilities=probabilities,
-                model_type=self.metadata.get("model_type", "unknown"),
-                n_predictions=len(predictions),
-            )
-
-        except Exception as e:
-            logger.error(f"Batch prediction failed: {e}")
-            raise HTTPException(
-                status_code=400, detail=f"Batch prediction failed: {str(e)}"
-            )
-
-    def _validate_features(self, df: pd.DataFrame):
-        """Validate input features."""
-        # Check if all required features are present
-        missing_features = set(self.feature_names) - set(df.columns)
-        if missing_features:
-            raise ValueError(f"Missing features: {missing_features}")
-
-        # Check for extra features
-        extra_features = set(df.columns) - set(self.feature_names)
-        if extra_features:
-            logger.warning(f"Extra features provided: {extra_features}")
-
-    def get_model_info(self) -> ModelInfoResponse:
-        """Get model information."""
-        if not self.is_loaded:
-            raise HTTPException(status_code=500, detail="Model not loaded")
-
-        return ModelInfoResponse(
-            run_id=self.artifacts_dir.name,
-            model_type=self.metadata.get("model_type", "unknown"),
-            task_type=self.metadata.get("task_type", "unknown"),
-            feature_names=self.feature_names,
-            n_features=len(self.feature_names),
-            performance_metrics=self.metadata.get("performance_metrics", {}),
-        )
-
-
-def create_app(artifacts_dir: Path) -> FastAPI:
-    """Create FastAPI application."""
-    app = FastAPI(
-        title="Autonomous ML Agent API",
-        description="Machine learning prediction service",
-        version="0.1.0",
-        docs_url="/docs",
-        redoc_url="/redoc",
+@app.get("/health", response_model=HealthResponse)
+async def health_check():
+    """Health check endpoint."""
+    return HealthResponse(
+        status="healthy", message="Autonomous ML Agent API is running", version="1.0.0"
     )
 
-    # Add CORS middleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
 
-    # Initialize model service
+@app.get("/healthz")
+async def healthz():
+    """Kubernetes-style health check."""
+    return {"status": "ok"}
+
+
+@app.post("/load_model")
+async def load_model(run_id: str = Form(...)):
+    """Load a model from artifacts."""
+    global loaded_pipeline, loaded_metadata
+
     try:
-        model_service = ModelService(artifacts_dir)
+        # Load pipeline
+        loaded_pipeline = artifact_exporter.load_pipeline(run_id)
+
+        # Load metadata
+        loaded_metadata = artifact_exporter.load_metadata(run_id)
+
+        logger.info(f"Model loaded successfully: {run_id}")
+        return {"message": f"Model {run_id} loaded successfully", "run_id": run_id}
+
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"Failed to initialize model service: {e}")
-        model_service = None
+        logger.error(f"Failed to load model {run_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load model: {str(e)}")
 
-    @app.get("/healthz", response_model=HealthResponse)
-    async def health_check():
-        """Health check endpoint."""
-        return HealthResponse(
-            status=(
-                "healthy" if model_service and model_service.is_loaded else "unhealthy"
+
+@app.get("/model_info", response_model=ModelInfoResponse)
+async def get_model_info():
+    """Get information about the currently loaded model."""
+    if loaded_pipeline is None:
+        raise HTTPException(status_code=404, detail="No model loaded")
+
+    try:
+        # Get pipeline info
+        pipeline_info = {
+            "model_type": type(loaded_pipeline).__name__,
+            "n_steps": (
+                len(loaded_pipeline.steps) if hasattr(loaded_pipeline, "steps") else 0
             ),
-            version="0.1.0",
-            timestamp=datetime.now().isoformat(),
-            run_id=artifacts_dir.name if model_service else None,
+            "steps": (
+                [step[0] for step in loaded_pipeline.steps]
+                if hasattr(loaded_pipeline, "steps")
+                else []
+            ),
+        }
+
+        # Combine with metadata
+        info = {
+            "pipeline_info": pipeline_info,
+            "metadata": loaded_metadata or {},
+            "loaded": True,
+        }
+
+        return ModelInfoResponse(**info)
+
+    except Exception as e:
+        logger.error(f"Failed to get model info: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get model info: {str(e)}"
         )
 
-    @app.get("/info", response_model=ModelInfoResponse)
-    async def get_model_info(current_user: Optional[str] = Depends(get_current_user)):
-        """Get model information."""
-        if not model_service or not model_service.is_loaded:
-            raise HTTPException(status_code=500, detail="Model not loaded")
 
-        return model_service.get_model_info()
+@app.post("/predict", response_model=PredictionResponse)
+async def predict_single(request: PredictionRequest):
+    """Make a single prediction."""
+    if loaded_pipeline is None:
+        raise HTTPException(status_code=404, detail="No model loaded")
 
-    @app.post("/predict_one", response_model=PredictionResponse)
-    async def predict_one(
-        request: PredictionRequest,
-        current_user: Optional[str] = Depends(get_current_user),
-    ):
-        """Make single prediction."""
-        if not model_service or not model_service.is_loaded:
-            raise HTTPException(status_code=500, detail="Model not loaded")
+    try:
+        # Convert request to DataFrame
+        data = pd.DataFrame([request.data])
 
-        return model_service.predict_single(request.features)
+        # Make prediction
+        prediction = loaded_pipeline.predict(data)[0]
 
-    @app.post("/predict_batch", response_model=BatchPredictionResponse)
-    async def predict_batch(
-        request: BatchPredictionRequest,
-        current_user: Optional[str] = Depends(get_current_user),
-    ):
-        """Make batch predictions."""
-        if not model_service or not model_service.is_loaded:
-            raise HTTPException(status_code=500, detail="Model not loaded")
+        # Get probabilities if available
+        probabilities = None
+        if hasattr(loaded_pipeline, "predict_proba"):
+            proba = loaded_pipeline.predict_proba(data)[0]
+            probabilities = proba.tolist()
 
-        return model_service.predict_batch(request.data)
+        return PredictionResponse(
+            prediction=float(prediction),
+            probabilities=probabilities,
+            model_info={
+                "run_id": loaded_metadata.get("run_id", "unknown"),
+                "model_type": type(loaded_pipeline).__name__,
+                "task_type": loaded_metadata.get("task_type", "unknown"),
+            },
+        )
 
-    @app.post("/predict_batch_file", response_model=BatchPredictionResponse)
-    async def predict_batch_file(file: UploadFile = File(...), run_id: str = Form(...)):
-        """Make batch predictions from uploaded CSV file."""
-        if not model_service or not model_service.is_loaded:
-            raise HTTPException(status_code=500, detail="Model not loaded")
+    except Exception as e:
+        logger.error(f"Prediction failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
-        if run_id != artifacts_dir.name:
-            raise HTTPException(status_code=400, detail="Run ID mismatch")
 
-        try:
-            # Read CSV file
-            contents = await file.read()
-            csv_string = contents.decode("utf-8")
+@app.post("/predict_batch", response_model=BatchPredictionResponse)
+async def predict_batch(request: BatchPredictionRequest):
+    """Make batch predictions."""
+    if loaded_pipeline is None:
+        raise HTTPException(status_code=404, detail="No model loaded")
 
-            return model_service.predict_batch(csv_string)
+    try:
+        # Convert request to DataFrame
+        data = pd.DataFrame(request.data)
 
-        except Exception as e:
-            logger.error(f"File prediction failed: {e}")
-            raise HTTPException(
-                status_code=400, detail=f"File prediction failed: {str(e)}"
-            )
+        # Make predictions
+        predictions = loaded_pipeline.predict(data).tolist()
 
-    @app.exception_handler(HTTPException)
-    async def http_exception_handler(request, exc):
-        """Handle HTTP exceptions."""
+        # Get probabilities if available
+        probabilities = None
+        if hasattr(loaded_pipeline, "predict_proba"):
+            proba = loaded_pipeline.predict_proba(data)
+            probabilities = proba.tolist()
+
+        return BatchPredictionResponse(
+            predictions=predictions,
+            probabilities=probabilities,
+            n_predictions=len(predictions),
+            model_info={
+                "run_id": loaded_metadata.get("run_id", "unknown"),
+                "model_type": type(loaded_pipeline).__name__,
+                "task_type": loaded_metadata.get("task_type", "unknown"),
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Batch prediction failed: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Batch prediction failed: {str(e)}"
+        )
+
+
+@app.post("/predict_file")
+async def predict_file(file: UploadFile = File(...)):
+    """Make predictions from uploaded CSV file."""
+    if loaded_pipeline is None:
+        raise HTTPException(status_code=404, detail="No model loaded")
+
+    try:
+        # Read uploaded file
+        content = await file.read()
+        data = pd.read_csv(pd.io.common.StringIO(content.decode("utf-8")))
+
+        # Make predictions
+        predictions = loaded_pipeline.predict(data).tolist()
+
+        # Get probabilities if available
+        probabilities = None
+        if hasattr(loaded_pipeline, "predict_proba"):
+            proba = loaded_pipeline.predict_proba(data)
+            probabilities = proba.tolist()
+
+        # Prepare response data
+        response_data = {
+            "predictions": predictions,
+            "probabilities": probabilities,
+            "n_predictions": len(predictions),
+            "model_info": {
+                "run_id": loaded_metadata.get("run_id", "unknown"),
+                "model_type": type(loaded_pipeline).__name__,
+                "task_type": loaded_metadata.get("task_type", "unknown"),
+            },
+        }
+
+        # Add predictions to original data
+        data_with_predictions = data.copy()
+        data_with_predictions["prediction"] = predictions
+
+        if probabilities is not None:
+            for i, prob in enumerate(probabilities[0] if probabilities else []):
+                data_with_predictions[f"probability_class_{i}"] = [
+                    p[i] for p in probabilities
+                ]
+
+        # Convert to CSV
+        csv_response = data_with_predictions.to_csv(index=False)
+
         return JSONResponse(
-            status_code=exc.status_code,
-            content=ErrorResponse(
-                error=exc.detail, timestamp=datetime.now().isoformat()
-            ).dict(),
+            content=response_data,
+            headers={"Content-Disposition": "attachment; filename=predictions.csv"},
         )
 
-    @app.exception_handler(Exception)
-    async def general_exception_handler(request, exc):
-        """Handle general exceptions."""
-        logger.error(f"Unhandled exception: {exc}")
-        return JSONResponse(
-            status_code=500,
-            content=ErrorResponse(
-                error="Internal server error",
-                detail=str(exc),
-                timestamp=datetime.now().isoformat(),
-            ).dict(),
+    except Exception as e:
+        logger.error(f"File prediction failed: {e}")
+        raise HTTPException(status_code=500, detail=f"File prediction failed: {str(e)}")
+
+
+@app.get("/available_models")
+async def list_available_models():
+    """List all available models in artifacts."""
+    try:
+        artifacts = artifact_exporter.list_artifacts()
+        return {"models": artifacts}
+    except Exception as e:
+        logger.error(f"Failed to list models: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list models: {str(e)}")
+
+
+@app.get("/model/{run_id}/info")
+async def get_model_info_by_id(run_id: str):
+    """Get information about a specific model by run ID."""
+    try:
+        metadata = artifact_exporter.load_metadata(run_id)
+        return {"run_id": run_id, "metadata": metadata}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Model {run_id} not found")
+    except Exception as e:
+        logger.error(f"Failed to get model info for {run_id}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get model info: {str(e)}"
         )
 
-    return app
+
+@app.post("/model/{run_id}/load")
+async def load_model_by_id(run_id: str):
+    """Load a specific model by run ID."""
+    return await load_model(run_id)
 
 
-# Create default app instance
-def get_default_app():
-    """Get default app instance with basic health check."""
-    app = FastAPI(title="Autonomous ML Agent API", version="0.1.0")
+@app.get("/")
+async def root():
+    """Root endpoint with API information."""
+    return {
+        "message": "Autonomous ML Agent API",
+        "version": "1.0.0",
+        "endpoints": {
+            "health": "/health",
+            "predict": "/predict",
+            "predict_batch": "/predict_batch",
+            "predict_file": "/predict_file",
+            "model_info": "/model_info",
+            "available_models": "/available_models",
+            "load_model": "/load_model",
+        },
+        "documentation": "/docs",
+    }
 
-    @app.get("/healthz")
-    async def health_check():
-        """Basic health check endpoint."""
-        return {"status": "healthy", "version": "0.1.0"}
 
-    @app.get("/")
-    async def root():
-        """Root endpoint."""
-        return {"message": "Autonomous ML Agent API", "version": "0.1.0"}
+if __name__ == "__main__":
+    import uvicorn
 
-    return app
-
-
-app = get_default_app()
+    uvicorn.run(app, host="0.0.0.0", port=8000)

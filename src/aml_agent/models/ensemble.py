@@ -1,34 +1,29 @@
 """
-Ensemble methods for the Autonomous ML Agent.
+Ensemble learning utilities for combining multiple models.
 """
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
-from sklearn.ensemble import (
-    StackingClassifier,
-    StackingRegressor,
-    VotingClassifier,
-    VotingRegressor,
-)
+from sklearn.ensemble import VotingClassifier, VotingRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.metrics import accuracy_score, r2_score
+from sklearn.model_selection import cross_val_score
 
 from ..logging import get_logger
-from ..types import TaskType, TrialResult
-from .registries import get_model_factory
+from ..types import ModelType, TaskType, TrialResult
 
 logger = get_logger()
 
 
 class EnsembleBuilder:
-    """Build ensemble models from individual models."""
+    """Build ensemble models from trial results."""
 
     def __init__(self, task_type: TaskType, random_seed: int = 42):
         self.task_type = task_type
         self.random_seed = random_seed
-        self.ensemble_models = {}
 
     def create_ensemble(
         self,
@@ -46,77 +41,62 @@ class EnsembleBuilder:
             top_k: Number of top models to include
             method: Ensemble method ("voting", "stacking", "blending")
             X: Training data for stacking
-            y: Target data for stacking
+            y: Training labels for stacking
 
         Returns:
             Ensemble model
         """
         # Get top K models
-        top_models = self._get_top_models(trial_results, top_k)
+        top_results = sorted(trial_results, key=lambda x: x.score, reverse=True)[:top_k]
 
-        if len(top_models) < 2:
+        if len(top_results) < 2:
             logger.warning(
                 "Not enough models for ensemble, returning best single model"
             )
-            return self._create_single_model(top_models[0])
+            return self._create_single_model(top_results[0])
 
-        logger.info(f"Creating {method} ensemble with {len(top_models)} models")
+        logger.info(f"Creating {method} ensemble with {len(top_results)} models")
 
         if method == "voting":
-            return self._create_voting_ensemble(top_models)
+            return self._create_voting_ensemble(top_results)
         elif method == "stacking":
             if X is None or y is None:
-                raise ValueError("X and y required for stacking ensemble")
-            return self._create_stacking_ensemble(top_models, X, y)
+                logger.warning(
+                    "Stacking requires training data, falling back to voting"
+                )
+                return self._create_voting_ensemble(top_results)
+            return self._create_stacking_ensemble(top_results, X, y)
         elif method == "blending":
-            return self._create_blending_ensemble(top_models)
+            return self._create_blending_ensemble(top_results)
         else:
-            raise ValueError(f"Unknown ensemble method: {method}")
-
-    def _get_top_models(
-        self, trial_results: List[TrialResult], top_k: int
-    ) -> List[TrialResult]:
-        """Get top K performing models."""
-        # Filter successful trials
-        successful_results = [r for r in trial_results if r.status == "completed"]
-
-        if not successful_results:
-            raise ValueError("No successful trial results")
-
-        # Sort by score and take top K
-        top_models = sorted(successful_results, key=lambda x: x.score, reverse=True)[
-            :top_k
-        ]
-
-        logger.info(
-            f"Selected top {len(top_models)} models with scores: "
-            f"{[f'{m.model_type.value}: {m.score:.4f}' for m in top_models]}"
-        )
-
-        return top_models
+            logger.warning(f"Unknown ensemble method: {method}, using voting")
+            return self._create_voting_ensemble(top_results)
 
     def _create_single_model(self, trial_result: TrialResult) -> BaseEstimator:
         """Create single model from trial result."""
+        from .registries import get_model_factory
+
         model = get_model_factory(
             trial_result.model_type, self.task_type, trial_result.params
         )
         return model
 
-    def _create_voting_ensemble(self, top_models: List[TrialResult]) -> BaseEstimator:
+    def _create_voting_ensemble(
+        self, trial_results: List[TrialResult]
+    ) -> BaseEstimator:
         """Create voting ensemble."""
-        estimators = []
+        from .registries import get_model_factory
 
-        for i, trial_result in enumerate(top_models):
-            model = get_model_factory(
-                trial_result.model_type, self.task_type, trial_result.params
-            )
-            estimator_name = f"{trial_result.model_type.value}_{i}"
-            estimators.append((estimator_name, model))
+        estimators = []
+        for i, result in enumerate(trial_results):
+            model = get_model_factory(result.model_type, self.task_type, result.params)
+            estimators.append((f"model_{i}", model))
 
         if self.task_type == TaskType.CLASSIFICATION:
             ensemble = VotingClassifier(
                 estimators=estimators,
-                voting="soft" if self._supports_proba(top_models) else "hard",
+                voting="soft" if self._supports_proba(estimators) else "hard",
+                random_state=self.random_seed,
             )
         else:
             ensemble = VotingRegressor(estimators=estimators)
@@ -124,17 +104,17 @@ class EnsembleBuilder:
         return ensemble
 
     def _create_stacking_ensemble(
-        self, top_models: List[TrialResult], X: pd.DataFrame, y: pd.Series
+        self, trial_results: List[TrialResult], X: pd.DataFrame, y: pd.Series
     ) -> BaseEstimator:
         """Create stacking ensemble."""
-        estimators = []
+        from sklearn.ensemble import StackingClassifier, StackingRegressor
 
-        for i, trial_result in enumerate(top_models):
-            model = get_model_factory(
-                trial_result.model_type, self.task_type, trial_result.params
-            )
-            estimator_name = f"{trial_result.model_type.value}_{i}"
-            estimators.append((estimator_name, model))
+        from .registries import get_model_factory
+
+        estimators = []
+        for i, result in enumerate(trial_results):
+            model = get_model_factory(result.model_type, self.task_type, result.params)
+            estimators.append((f"model_{i}", model))
 
         # Choose meta-learner
         if self.task_type == TaskType.CLASSIFICATION:
@@ -156,208 +136,214 @@ class EnsembleBuilder:
 
         return ensemble
 
-    def _create_blending_ensemble(self, top_models: List[TrialResult]) -> BaseEstimator:
-        """Create blending ensemble with weighted predictions."""
-        # Calculate weights based on performance
-        weights = [model.score for model in top_models]
-        weights = np.array(weights) / sum(weights)
+    def _create_blending_ensemble(
+        self, trial_results: List[TrialResult]
+    ) -> BaseEstimator:
+        """Create blending ensemble with learned weights."""
+        from .registries import get_model_factory
 
         # Create weighted ensemble
-        if self.task_type == TaskType.CLASSIFICATION:
-            ensemble = WeightedVotingClassifier(top_models, weights, self.random_seed)
-        else:
-            ensemble = WeightedVotingRegressor(top_models, weights, self.random_seed)
+        models = []
+        weights = []
 
-        return ensemble
+        for result in trial_results:
+            model = get_model_factory(result.model_type, self.task_type, result.params)
+            models.append(model)
+            weights.append(result.score)  # Use score as weight
 
-    def _supports_proba(self, models: List[TrialResult]) -> bool:
-        """Check if all models support probability prediction."""
-        for model_result in models:
-            model = get_model_factory(
-                model_result.model_type, self.task_type, model_result.params
-            )
-            if not hasattr(model, "predict_proba"):
+        # Normalize weights
+        weights = np.array(weights)
+        weights = weights / weights.sum()
+
+        return WeightedEnsemble(models, weights, self.task_type)
+
+    def _supports_proba(self, estimators: List[tuple]) -> bool:
+        """Check if all estimators support predict_proba."""
+        for _, estimator in estimators:
+            if not hasattr(estimator, "predict_proba"):
                 return False
         return True
 
     def evaluate_ensemble(
-        self, ensemble: BaseEstimator, X: pd.DataFrame, y: pd.Series, cv_folds: int = 5
-    ) -> Dict[str, float]:
+        self, ensemble: BaseEstimator, X: pd.DataFrame, y: pd.Series
+    ) -> Dict[str, Any]:
         """Evaluate ensemble performance."""
-        from ..models.train_eval import cross_validate_model
+        # Cross-validation evaluation
+        if self.task_type == TaskType.CLASSIFICATION:
+            cv_scores = cross_val_score(ensemble, X, y, cv=5, scoring="accuracy")
+        else:
+            cv_scores = cross_val_score(ensemble, X, y, cv=5, scoring="r2")
 
-        cv_scores, metrics = cross_validate_model(
-            ensemble, X, y, self.task_type, cv_folds
-        )
+        return {
+            "cv_mean": np.mean(cv_scores),
+            "cv_std": np.std(cv_scores),
+            "cv_scores": cv_scores.tolist(),
+        }
 
-        return {"cv_mean": cv_scores.mean(), "cv_std": cv_scores.std(), **metrics}
 
-
-class WeightedVotingClassifier(BaseEstimator, ClassifierMixin):
-    """Weighted voting classifier for blending."""
+class WeightedEnsemble(BaseEstimator):
+    """Weighted ensemble of models."""
 
     def __init__(
-        self,
-        trial_results: List[TrialResult],
-        weights: np.ndarray,
-        random_seed: int = 42,
+        self, models: List[BaseEstimator], weights: np.ndarray, task_type: TaskType
     ):
-        self.trial_results = trial_results
+        self.models = models
         self.weights = weights
-        self.random_seed = random_seed
-        self.models = []
-        self.classes_ = None
+        self.task_type = task_type
+        self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y: pd.Series):
         """Fit all models in the ensemble."""
-        self.models = []
-
-        for trial_result in self.trial_results:
-            model = get_model_factory(
-                trial_result.model_type, TaskType.CLASSIFICATION, trial_result.params
-            )
+        for model in self.models:
             model.fit(X, y)
-            self.models.append(model)
-
-        # Store classes
-        self.classes_ = np.unique(y)
+        self.is_fitted = True
         return self
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
-        """Make predictions using weighted voting."""
+        """Make predictions using weighted average."""
+        if not self.is_fitted:
+            raise ValueError("Ensemble must be fitted before predict")
+
         predictions = []
-
-        for model in self.models:
-            if hasattr(model, "predict_proba"):
-                pred_proba = model.predict_proba(X)
-                predictions.append(pred_proba)
-            else:
-                pred = model.predict(X)
-                # Convert to one-hot encoding
-                pred_proba = np.zeros((len(pred), len(self.classes_)))
-                for i, class_label in enumerate(self.classes_):
-                    pred_proba[pred == class_label, i] = 1
-                predictions.append(pred_proba)
-
-        # Weighted average of probabilities
-        weighted_proba = np.average(predictions, axis=0, weights=self.weights)
-
-        # Return class with highest probability
-        return self.classes_[np.argmax(weighted_proba, axis=1)]
-
-    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
-        """Predict class probabilities."""
-        predictions = []
-
-        for model in self.models:
-            if hasattr(model, "predict_proba"):
-                pred_proba = model.predict_proba(X)
-                predictions.append(pred_proba)
-            else:
-                pred = model.predict(X)
-                # Convert to one-hot encoding
-                pred_proba = np.zeros((len(pred), len(self.classes_)))
-                for i, class_label in enumerate(self.classes_):
-                    pred_proba[pred == class_label, i] = 1
-                predictions.append(pred_proba)
-
-        # Weighted average of probabilities
-        return np.average(predictions, axis=0, weights=self.weights)
-
-
-class WeightedVotingRegressor(BaseEstimator, RegressorMixin):
-    """Weighted voting regressor for blending."""
-
-    def __init__(
-        self,
-        trial_results: List[TrialResult],
-        weights: np.ndarray,
-        random_seed: int = 42,
-    ):
-        self.trial_results = trial_results
-        self.weights = weights
-        self.random_seed = random_seed
-        self.models = []
-
-    def fit(self, X: pd.DataFrame, y: pd.Series):
-        """Fit all models in the ensemble."""
-        self.models = []
-
-        for trial_result in self.trial_results:
-            model = get_model_factory(
-                trial_result.model_type, TaskType.REGRESSION, trial_result.params
-            )
-            model.fit(X, y)
-            self.models.append(model)
-
-        return self
-
-    def predict(self, X: pd.DataFrame) -> np.ndarray:
-        """Make predictions using weighted voting."""
-        predictions = []
-
         for model in self.models:
             pred = model.predict(X)
             predictions.append(pred)
 
-        # Weighted average of predictions
-        return np.average(predictions, axis=0, weights=self.weights)
+        # Weighted average
+        predictions = np.array(predictions)
+        weighted_pred = np.average(predictions, axis=0, weights=self.weights)
+
+        if self.task_type == TaskType.CLASSIFICATION:
+            return np.round(weighted_pred).astype(int)
+        else:
+            return weighted_pred
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        """Predict probabilities for classification."""
+        if not self.is_fitted:
+            raise ValueError("Ensemble must be fitted before predict_proba")
+
+        if self.task_type != TaskType.CLASSIFICATION:
+            raise ValueError("predict_proba only available for classification")
+
+        # Get probabilities from models that support it
+        proba_models = [m for m in self.models if hasattr(m, "predict_proba")]
+        if not proba_models:
+            raise ValueError("No models support predict_proba")
+
+        probabilities = []
+        for model in proba_models:
+            proba = model.predict_proba(X)
+            probabilities.append(proba)
+
+        # Weighted average of probabilities
+        probabilities = np.array(probabilities)
+        weighted_proba = np.average(
+            probabilities, axis=0, weights=self.weights[: len(proba_models)]
+        )
+
+        return weighted_proba
+
+
+class AdvancedEnsemble:
+    """Advanced ensemble methods with dynamic weighting."""
+
+    def __init__(self, task_type: TaskType, random_seed: int = 42):
+        self.task_type = task_type
+        self.random_seed = random_seed
+
+    def create_dynamic_ensemble(
+        self,
+        trial_results: List[TrialResult],
+        X: pd.DataFrame,
+        y: pd.Series,
+        method: str = "performance_weighted",
+    ) -> BaseEstimator:
+        """Create ensemble with dynamic weighting based on performance."""
+        from .registries import get_model_factory
+
+        # Get top models
+        top_results = sorted(trial_results, key=lambda x: x.score, reverse=True)[:5]
+
+        models = []
+        for result in top_results:
+            model = get_model_factory(result.model_type, self.task_type, result.params)
+            models.append(model)
+
+        if method == "performance_weighted":
+            return self._create_performance_weighted_ensemble(models, top_results, X, y)
+        elif method == "diversity_weighted":
+            return self._create_diversity_weighted_ensemble(models, X, y)
+        else:
+            # Fallback to simple voting
+            return self._create_simple_voting_ensemble(models)
+
+    def _create_performance_weighted_ensemble(
+        self,
+        models: List[BaseEstimator],
+        trial_results: List[TrialResult],
+        X: pd.DataFrame,
+        y: pd.Series,
+    ) -> BaseEstimator:
+        """Create ensemble weighted by individual model performance."""
+        # Calculate performance weights
+        scores = [result.score for result in trial_results]
+        weights = np.array(scores)
+        weights = weights / weights.sum()
+
+        return WeightedEnsemble(models, weights, self.task_type)
+
+    def _create_diversity_weighted_ensemble(
+        self, models: List[BaseEstimator], X: pd.DataFrame, y: pd.Series
+    ) -> BaseEstimator:
+        """Create ensemble weighted by model diversity."""
+        # Calculate diversity scores
+        predictions = []
+        for model in models:
+            model.fit(X, y)
+            pred = model.predict(X)
+            predictions.append(pred)
+
+        # Calculate pairwise diversity
+        diversity_scores = []
+        for i, pred1 in enumerate(predictions):
+            diversity = 0
+            for j, pred2 in enumerate(predictions):
+                if i != j:
+                    if self.task_type == TaskType.CLASSIFICATION:
+                        diversity += 1 - accuracy_score(pred1, pred2)
+                    else:
+                        diversity += 1 - r2_score(pred1, pred2)
+            diversity_scores.append(diversity)
+
+        # Normalize weights
+        weights = np.array(diversity_scores)
+        weights = weights / weights.sum()
+
+        return WeightedEnsemble(models, weights, self.task_type)
+
+    def _create_simple_voting_ensemble(
+        self, models: List[BaseEstimator]
+    ) -> BaseEstimator:
+        """Create simple voting ensemble."""
+        estimators = [(f"model_{i}", model) for i, model in enumerate(models)]
+
+        if self.task_type == TaskType.CLASSIFICATION:
+            return VotingClassifier(
+                estimators=estimators, random_state=self.random_seed
+            )
+        else:
+            return VotingRegressor(estimators=estimators)
 
 
 def create_ensemble(
     trial_results: List[TrialResult],
     task_type: TaskType,
-    top_k: int = 3,
     method: str = "voting",
+    top_k: int = 3,
     X: Optional[pd.DataFrame] = None,
     y: Optional[pd.Series] = None,
 ) -> BaseEstimator:
-    """Create ensemble from trial results."""
+    """Convenience function to create ensemble."""
     builder = EnsembleBuilder(task_type)
     return builder.create_ensemble(trial_results, top_k, method, X, y)
-
-
-def evaluate_ensemble_performance(
-    ensemble: BaseEstimator,
-    X: pd.DataFrame,
-    y: pd.Series,
-    task_type: TaskType,
-    cv_folds: int = 5,
-) -> Dict[str, float]:
-    """Evaluate ensemble performance."""
-    builder = EnsembleBuilder(task_type)
-    return builder.evaluate_ensemble(ensemble, X, y, cv_folds)
-
-
-def get_ensemble_weights(
-    trial_results: List[TrialResult], top_k: int = 3
-) -> np.ndarray:
-    """Get ensemble weights based on model performance."""
-    top_models = sorted(trial_results, key=lambda x: x.score, reverse=True)[:top_k]
-    weights = np.array([model.score for model in top_models])
-    return weights / weights.sum()
-
-
-def compare_ensemble_methods(
-    trial_results: List[TrialResult],
-    X: pd.DataFrame,
-    y: pd.Series,
-    task_type: TaskType,
-    top_k: int = 3,
-) -> Dict[str, Dict[str, float]]:
-    """Compare different ensemble methods."""
-    methods = ["voting", "blending"]
-    results = {}
-
-    builder = EnsembleBuilder(task_type)
-
-    for method in methods:
-        try:
-            ensemble = builder.create_ensemble(trial_results, top_k, method, X, y)
-            performance = builder.evaluate_ensemble(ensemble, X, y)
-            results[method] = performance
-        except Exception as e:
-            logger.warning(f"Failed to create {method} ensemble: {e}")
-            results[method] = {"error": str(e)}
-
-    return results

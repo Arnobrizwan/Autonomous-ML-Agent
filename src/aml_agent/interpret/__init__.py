@@ -2,12 +2,10 @@
 Model interpretability and explanation module.
 """
 
-from .explain import ModelExplainer, explain_model
-from .importance import FeatureImportanceAnalyzer, get_feature_importance
+from .explain import ModelExplainer
+from .importance import FeatureImportanceAnalyzer
 
 __all__ = [
     "FeatureImportanceAnalyzer",
-    "get_feature_importance",
     "ModelExplainer",
-    "explain_model",
 ]

@@ -1,5 +1,5 @@
 """
-Model training and evaluation for the Autonomous ML Agent.
+Model training and evaluation utilities.
 """
 
 import time
@@ -7,131 +7,148 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import optuna
 import pandas as pd
-from optuna import Trial
+from sklearn.base import BaseEstimator
+from sklearn.metrics import make_scorer
 from sklearn.model_selection import (
     KFold,
     StratifiedKFold,
     cross_val_score,
+    train_test_split,
 )
 
 from ..logging import get_logger
-from ..types import BudgetClock, MetricType, ModelType, TaskType, TrialResult
-from ..utils import calculate_metrics, select_metric, set_random_seed
-from .registries import get_model_factory
-from .spaces import suggest_parameters, validate_parameters
+from ..types import (
+    BudgetClock,
+    MetricType,
+    ModelType,
+    TaskType,
+    TrialResult,
+)
+from ..utils import calculate_metrics, select_metric
+from .registries import get_model_factory, validate_model_params
+from .spaces import get_search_space
 
 logger = get_logger()
 
 
 class ModelTrainer:
-    """Train and evaluate models with hyperparameter optimization."""
+    """Train and evaluate models with cross-validation."""
 
     def __init__(
         self,
         task_type: TaskType,
-        metric: MetricType = MetricType.AUTO,
+        metric: MetricType,
         cv_folds: int = 5,
         random_seed: int = 42,
     ):
         self.task_type = task_type
-        self.metric = select_metric(task_type, metric)
-        self.metric_name = self.metric.value
+        self.metric = metric
         self.cv_folds = cv_folds
         self.random_seed = random_seed
-        self.trial_results = []
+        self.scorer = self._create_scorer()
 
-        # Set random seed
-        set_random_seed(random_seed)
+    def _create_scorer(self):
+        """Create sklearn scorer for the metric."""
+        from sklearn.metrics import (
+            accuracy_score,
+            balanced_accuracy_score,
+            f1_score,
+            make_scorer,
+            mean_absolute_error,
+            mean_squared_error,
+            precision_score,
+            r2_score,
+            recall_score,
+            roc_auc_score,
+        )
+
+        metric_map = {
+            MetricType.ACCURACY: make_scorer(accuracy_score),
+            MetricType.PRECISION: make_scorer(precision_score, average="weighted"),
+            MetricType.RECALL: make_scorer(recall_score, average="weighted"),
+            MetricType.F1: make_scorer(f1_score, average="weighted"),
+            MetricType.F1_MACRO: make_scorer(f1_score, average="macro"),
+            MetricType.F1_WEIGHTED: make_scorer(f1_score, average="weighted"),
+            MetricType.AUC: make_scorer(
+                roc_auc_score, multi_class="ovr", average="weighted"
+            ),
+            MetricType.BALANCED_ACCURACY: make_scorer(balanced_accuracy_score),
+            MetricType.MAE: make_scorer(mean_absolute_error, greater_is_better=False),
+            MetricType.MSE: make_scorer(mean_squared_error, greater_is_better=False),
+            MetricType.RMSE: make_scorer(
+                mean_squared_error, greater_is_better=False, squared=False
+            ),
+            MetricType.R2: make_scorer(r2_score),
+        }
+
+        return metric_map.get(self.metric, make_scorer(f1_score, average="weighted"))
 
     def train_model(
         self,
         model_type: ModelType,
         X: pd.DataFrame,
         y: pd.Series,
-        params: Dict[str, Any],
-        trial: Optional[Trial] = None,
-    ) -> TrialResult:
+        params: Optional[Dict[str, Any]] = None,
+    ) -> BaseEstimator:
         """
-        Train a single model with given parameters.
+        Train a single model.
 
         Args:
             model_type: Type of model to train
             X: Feature matrix
             y: Target vector
             params: Model parameters
-            trial: Optuna trial (optional)
 
         Returns:
-            Trial result
+            Trained model
         """
+        logger.info(f"Training {model_type.value} model")
+
+        # Validate parameters
+        if params:
+            params = validate_model_params(model_type, params)
+
+        # Create model
+        model = get_model_factory(model_type, self.task_type, params)
+
+        # Train model
         start_time = time.time()
-        trial_id = trial.number if trial else len(self.trial_results)
+        model.fit(X, y)
+        fit_time = time.time() - start_time
 
-        try:
-            # Validate parameters
-            validated_params = validate_parameters(model_type, params)
+        logger.info(f"Model trained in {fit_time:.2f} seconds")
+        return model
 
-            # Create model
-            model = get_model_factory(model_type, self.task_type, validated_params)
+    def evaluate_model(
+        self,
+        model: BaseEstimator,
+        X: pd.DataFrame,
+        y: pd.Series,
+        cv: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Evaluate model performance.
 
-            # Train model
-            model.fit(X, y)
+        Args:
+            model: Trained model
+            X: Feature matrix
+            y: Target vector
+            cv: Whether to use cross-validation
 
-            # Evaluate model
-            cv_scores, metrics = self._evaluate_model(model, X, y)
+        Returns:
+            Evaluation results
+        """
+        if cv:
+            return self._evaluate_with_cv(model, X, y)
+        else:
+            return self._evaluate_single_split(model, X, y)
 
-            # Calculate timing
-            fit_time = time.time() - start_time
-            predict_time = self._measure_predict_time(model, X)
-
-            # Create trial result
-            result = TrialResult(
-                trial_id=trial_id,
-                model_type=model_type,
-                params=validated_params,
-                score=cv_scores.mean(),
-                metric=self.metric,
-                cv_scores=cv_scores.tolist(),
-                fit_time=fit_time,
-                predict_time=predict_time,
-                timestamp=datetime.now(),
-                status="completed",
-            )
-
-            # Log result
-            logger.info(
-                f"Trial {trial_id} ({model_type}): score={result.score:.4f}, "
-                f"fit_time={fit_time:.2f}s"
-            )
-
-            return result
-
-        except Exception as e:
-            logger.error(f"Trial {trial_id} failed: {str(e)}")
-
-            # Create failed trial result
-            result = TrialResult(
-                trial_id=trial_id,
-                model_type=model_type,
-                params=params,
-                score=0.0,
-                metric=self.metric,
-                cv_scores=[],
-                fit_time=time.time() - start_time,
-                predict_time=0.0,
-                timestamp=datetime.now(),
-                status="failed",
-            )
-
-            return result
-
-    def _evaluate_model(
-        self, model: Any, X: pd.DataFrame, y: pd.Series
-    ) -> Tuple[np.ndarray, Dict[str, float]]:
-        """Evaluate model using cross-validation."""
-        # Create CV strategy
+    def _evaluate_with_cv(
+        self, model: BaseEstimator, X: pd.DataFrame, y: pd.Series
+    ) -> Dict[str, Any]:
+        """Evaluate model with cross-validation."""
+        # Choose CV strategy
         if self.task_type == TaskType.CLASSIFICATION:
             cv = StratifiedKFold(
                 n_splits=self.cv_folds, shuffle=True, random_state=self.random_seed
@@ -141,32 +158,67 @@ class ModelTrainer:
                 n_splits=self.cv_folds, shuffle=True, random_state=self.random_seed
             )
 
-        # Calculate CV scores
-        cv_scores = cross_val_score(
-            model, X, y, cv=cv, scoring=self.metric_name, n_jobs=-1
-        )
+        # Perform cross-validation
+        cv_scores = cross_val_score(model, X, y, cv=cv, scoring=self.scorer, n_jobs=-1)
 
-        # Calculate additional metrics on full dataset
+        # Calculate metrics
+        cv_mean = np.mean(cv_scores)
+        cv_std = np.std(cv_scores)
+
+        # Fit model on full dataset for additional metrics
         model.fit(X, y)
-        y_pred = model.predict(X)
 
-        # Get probabilities for classification
+        # Get additional metrics on full dataset
+        y_pred = model.predict(X)
         y_prob = None
-        if self.task_type == TaskType.CLASSIFICATION and hasattr(
-            model, "predict_proba"
-        ):
+        if hasattr(model, "predict_proba"):
             y_prob = model.predict_proba(X)
 
-        # Calculate comprehensive metrics
         metrics = calculate_metrics(y.values, y_pred, y_prob, self.task_type)
 
-        return cv_scores, metrics
+        return {
+            "cv_scores": cv_scores.tolist(),
+            "cv_mean": cv_mean,
+            "cv_std": cv_std,
+            "metrics": metrics,
+            "score": cv_mean,  # Primary score for optimization
+        }
 
-    def _measure_predict_time(self, model: Any, X: pd.DataFrame) -> float:
-        """Measure prediction time for model."""
-        start_time = time.time()
-        model.predict(X)
-        return time.time() - start_time
+    def _evaluate_single_split(
+        self, model: BaseEstimator, X: pd.DataFrame, y: pd.Series
+    ) -> Dict[str, Any]:
+        """Evaluate model on single train/test split."""
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            test_size=0.2,
+            random_state=self.random_seed,
+            stratify=y if self.task_type == TaskType.CLASSIFICATION else None,
+        )
+
+        # Train on split
+        model.fit(X_train, y_train)
+
+        # Predict
+        y_pred = model.predict(X_test)
+        y_prob = None
+        if hasattr(model, "predict_proba"):
+            y_prob = model.predict_proba(X_test)
+
+        # Calculate metrics
+        metrics = calculate_metrics(y_test.values, y_pred, y_prob, self.task_type)
+
+        # Use primary metric as score
+        score = metrics.get(self.metric.value, 0.0)
+
+        return {
+            "cv_scores": [score],
+            "cv_mean": score,
+            "cv_std": 0.0,
+            "metrics": metrics,
+            "score": score,
+        }
 
     def optimize_hyperparameters(
         self,
@@ -175,230 +227,191 @@ class ModelTrainer:
         y: pd.Series,
         n_trials: int = 50,
         budget_clock: Optional[BudgetClock] = None,
+        custom_space: Optional[Dict[str, Any]] = None,
     ) -> List[TrialResult]:
         """
-        Optimize hyperparameters for a model type.
+        Optimize hyperparameters using Optuna.
 
         Args:
             model_type: Type of model
             X: Feature matrix
             y: Target vector
-            n_trials: Number of trials
+            n_trials: Number of optimization trials
             budget_clock: Budget clock for time management
+            custom_space: Custom search space
 
         Returns:
             List of trial results
         """
-        logger.info(
-            f"Starting hyperparameter optimization for {model_type} "
-            f"with {n_trials} trials"
-        )
+        logger.info(f"Starting hyperparameter optimization for {model_type.value}")
+
+        # Get search space
+        search_space = get_search_space(model_type, self.task_type, custom_space)
 
         # Create Optuna study
+        import optuna
+
         study = optuna.create_study(
             direction="maximize",
             sampler=optuna.samplers.TPESampler(seed=self.random_seed),
         )
 
+        # Define objective function
         def objective(trial):
             # Check budget
             if budget_clock and budget_clock.is_expired():
                 raise optuna.TrialPruned()
 
-            # Suggest parameters
-            params = suggest_parameters(trial, model_type)
+            # Sample parameters
+            params = {}
+            for param, distribution in search_space.items():
+                if isinstance(
+                    distribution, optuna.distributions.CategoricalDistribution
+                ):
+                    params[param] = trial.suggest_categorical(
+                        param, distribution.choices
+                    )
+                elif isinstance(distribution, optuna.distributions.IntDistribution):
+                    params[param] = trial.suggest_int(
+                        param,
+                        distribution.low,
+                        distribution.high,
+                        step=distribution.step,
+                    )
+                elif isinstance(distribution, optuna.distributions.FloatDistribution):
+                    if distribution.log:
+                        params[param] = trial.suggest_float(
+                            param, distribution.low, distribution.high, log=True
+                        )
+                    else:
+                        params[param] = trial.suggest_float(
+                            param, distribution.low, distribution.high
+                        )
 
-            # Train and evaluate model
-            result = self.train_model(model_type, X, y, params, trial)
+            # Validate parameters
+            params = validate_model_params(model_type, params)
 
-            # Return score for optimization
-            return result.score
+            # Create and train model
+            model = get_model_factory(model_type, self.task_type, params)
 
-        # Optimize
+            # Evaluate with CV
+            start_time = time.time()
+            eval_results = self._evaluate_with_cv(model, X, y)
+            fit_time = time.time() - start_time
+
+            # Calculate predict time (rough estimate)
+            predict_start = time.time()
+            model.predict(X.head(100))  # Sample prediction
+            predict_time = (time.time() - predict_start) * (len(X) / 100)
+
+            # Store trial results
+            trial.set_user_attr("fit_time", fit_time)
+            trial.set_user_attr("predict_time", predict_time)
+            trial.set_user_attr("cv_scores", eval_results["cv_scores"])
+
+            return eval_results["score"]
+
+        # Run optimization
         try:
-            study.optimize(objective, n_trials=n_trials, timeout=None)
-        except optuna.TrialPruned:
-            logger.info("Optimization pruned due to budget constraints")
+            study.optimize(
+                objective,
+                n_trials=n_trials,
+                timeout=budget_clock.remaining_seconds() if budget_clock else None,
+            )
+        except Exception as e:
+            logger.warning(f"Optimization interrupted: {e}")
 
-        # Collect results
+        # Convert trials to results
         results = []
-        for trial in study.trials:
+        for i, trial in enumerate(study.trials):
             if trial.state == optuna.trial.TrialState.COMPLETE:
-                result = self.train_model(model_type, X, y, trial.params, trial)
+                result = TrialResult(
+                    trial_id=i,
+                    model_type=model_type,
+                    params=trial.params,
+                    score=trial.value,
+                    metric=self.metric,
+                    cv_scores=trial.user_attrs.get("cv_scores", []),
+                    fit_time=trial.user_attrs.get("fit_time", 0),
+                    predict_time=trial.user_attrs.get("predict_time", 0),
+                    timestamp=datetime.now(),
+                    status="completed",
+                )
+                results.append(result)
+            else:
+                result = TrialResult(
+                    trial_id=i,
+                    model_type=model_type,
+                    params=trial.params,
+                    score=0.0,
+                    metric=self.metric,
+                    cv_scores=[],
+                    fit_time=0,
+                    predict_time=0,
+                    timestamp=datetime.now(),
+                    status="failed",
+                )
                 results.append(result)
 
-        logger.info(
-            f"Completed optimization for {model_type}: "
-            f"{len(results)} successful trials"
-        )
-
+        logger.info(f"Completed {len(results)} trials for {model_type.value}")
         return results
 
-    def train_multiple_models(
-        self,
-        model_types: List[ModelType],
-        X: pd.DataFrame,
-        y: pd.Series,
-        n_trials_per_model: int = 10,
-        budget_clock: Optional[BudgetClock] = None,
-    ) -> List[TrialResult]:
-        """
-        Train multiple models with hyperparameter optimization.
+    def get_feature_importance(
+        self, model: BaseEstimator, feature_names: List[str]
+    ) -> Dict[str, float]:
+        """Get feature importance from model."""
+        importance_dict = {}
 
-        Args:
-            model_types: List of model types to train
-            X: Feature matrix
-            y: Target vector
-            n_trials_per_model: Number of trials per model
-            budget_clock: Budget clock for time management
+        if hasattr(model, "feature_importances_"):
+            importances = model.feature_importances_
+            importance_dict = dict(zip(feature_names, importances))
+        elif hasattr(model, "coef_"):
+            # For linear models, use absolute coefficients
+            coef = np.abs(model.coef_)
+            if coef.ndim > 1:
+                coef = np.mean(coef, axis=0)
+            importance_dict = dict(zip(feature_names, coef))
+        else:
+            logger.warning("Model does not support feature importance")
+            return {}
 
-        Returns:
-            List of all trial results
-        """
-        all_results = []
-
-        for model_type in model_types:
-            if budget_clock and budget_clock.is_expired():
-                logger.info("Budget expired, stopping model training")
-                break
-
-            logger.info(f"Training {model_type} model")
-
-            # Calculate remaining trials based on budget
-            remaining_trials = n_trials_per_model
-            if budget_clock:
-                remaining_time = budget_clock.remaining_seconds()
-                if remaining_time < 60:  # Less than 1 minute remaining
-                    remaining_trials = min(remaining_trials, 5)
-
-            # Optimize hyperparameters
-            model_results = self.optimize_hyperparameters(
-                model_type, X, y, remaining_trials, budget_clock
-            )
-
-            all_results.extend(model_results)
-
-            # Update budget clock
-            if budget_clock:
-                budget_clock.update_elapsed()
-
-        return all_results
+        # Sort by importance
+        return dict(sorted(importance_dict.items(), key=lambda x: x[1], reverse=True))
 
 
-def evaluate_model(
-    model: Any, X: pd.DataFrame, y: pd.Series, task_type: TaskType, metric: str = "auto"
-) -> Dict[str, float]:
-    """
-    Evaluate a trained model.
-
-    Args:
-        model: Trained model
-        X: Feature matrix
-        y: Target vector
-        task_type: Task type
-        metric: Metric to use
-
-    Returns:
-        Dictionary of metrics
-    """
-    # Make predictions
-    y_pred = model.predict(X)
-
-    # Get probabilities for classification
-    y_prob = None
-    if task_type == TaskType.CLASSIFICATION and hasattr(model, "predict_proba"):
-        y_prob = model.predict_proba(X)
-
-    # Calculate metrics
-    metrics = calculate_metrics(y.values, y_pred, y_prob, task_type)
-
-    return metrics
-
-
-def cross_validate_model(
-    model: Any,
+def train_and_evaluate(
+    model_type: ModelType,
     X: pd.DataFrame,
     y: pd.Series,
     task_type: TaskType,
-    cv_folds: int = 5,
-    metric: str = "auto",
-) -> Tuple[np.ndarray, Dict[str, float]]:
+    metric: MetricType = MetricType.AUTO,
+    params: Optional[Dict[str, Any]] = None,
+) -> Tuple[BaseEstimator, Dict[str, Any]]:
     """
-    Cross-validate a model.
+    Convenience function to train and evaluate a model.
 
     Args:
-        model: Model to validate
+        model_type: Type of model
         X: Feature matrix
         y: Target vector
         task_type: Task type
-        cv_folds: Number of CV folds
-        metric: Metric to use
+        metric: Evaluation metric
+        params: Model parameters
 
     Returns:
-        Tuple of CV scores and metrics
+        Tuple of (trained_model, evaluation_results)
     """
-    # Select metric
-    selected_metric = select_metric(task_type, MetricType(metric))
+    # Select metric if auto
+    if metric == MetricType.AUTO:
+        metric = select_metric(task_type, metric)
 
-    # Create CV strategy
-    if task_type == TaskType.CLASSIFICATION:
-        cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
-    else:
-        cv = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
+    # Create trainer
+    trainer = ModelTrainer(task_type=task_type, metric=metric)
 
-    # Calculate CV scores
-    cv_scores = cross_val_score(model, X, y, cv=cv, scoring=selected_metric, n_jobs=-1)
+    # Train model
+    model = trainer.train_model(model_type, X, y, params)
 
-    # Calculate additional metrics (fit model first)
-    model.fit(X, y)
-    metrics = evaluate_model(model, X, y, task_type, metric)
+    # Evaluate model
+    results = trainer.evaluate_model(model, X, y)
 
-    return cv_scores, metrics
-
-
-def get_model_performance_summary(results: List[TrialResult]) -> Dict[str, Any]:
-    """Get performance summary from trial results."""
-    if not results:
-        return {}
-
-    # Filter successful trials
-    successful_results = [r for r in results if r.status == "completed"]
-
-    if not successful_results:
-        return {"error": "No successful trials"}
-
-    # Calculate statistics
-    scores = [r.score for r in successful_results]
-    fit_times = [r.fit_time for r in successful_results]
-    predict_times = [r.predict_time for r in successful_results]
-
-    # Group by model type
-    model_performance = {}
-    for result in successful_results:
-        model_type = result.model_type.value
-        if model_type not in model_performance:
-            model_performance[model_type] = []
-        model_performance[model_type].append(result.score)
-
-    # Calculate best model
-    best_result = max(successful_results, key=lambda x: x.score)
-
-    return {
-        "total_trials": len(results),
-        "successful_trials": len(successful_results),
-        "best_score": max(scores),
-        "mean_score": np.mean(scores),
-        "std_score": np.std(scores),
-        "best_model": best_result.model_type.value,
-        "best_params": best_result.params,
-        "mean_fit_time": np.mean(fit_times),
-        "mean_predict_time": np.mean(predict_times),
-        "model_performance": {
-            model_type: {
-                "mean_score": np.mean(scores),
-                "std_score": np.std(scores),
-                "n_trials": len(scores),
-            }
-            for model_type, scores in model_performance.items()
-        },
-    }
+    return model, results

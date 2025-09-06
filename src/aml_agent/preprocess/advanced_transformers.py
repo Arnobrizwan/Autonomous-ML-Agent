@@ -43,6 +43,30 @@ from ..logging import get_logger
 logger = get_logger()
 
 
+def _get_text_columns(X) -> List[str]:
+    """Identify text columns in the DataFrame."""
+    if not hasattr(X, "columns"):
+        # If X is a numpy array, return empty list
+        return []
+
+    text_columns = []
+    for col in X.columns:
+        if X[col].dtype == "object":
+            # Check if column contains text-like data
+            sample_values = X[col].dropna().head(10)
+            if len(sample_values) > 0:
+                # Check if values contain words (not just numbers or categories)
+                text_ratio = sum(
+                    1
+                    for val in sample_values
+                    if isinstance(val, str) and len(val.split()) > 1
+                ) / len(sample_values)
+                if text_ratio > 0.3:  # 30% of values are multi-word
+                    text_columns.append(col)
+
+    return text_columns
+
+
 class TextPreprocessor(BaseEstimator, TransformerMixin):
     """Advanced text preprocessing transformer."""
 
@@ -66,7 +90,7 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
 
     def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> "TextPreprocessor":
         """Fit the text preprocessor."""
-        text_columns = self._get_text_columns(X)
+        text_columns = _get_text_columns(X)
 
         if not text_columns:
             logger.warning("No text columns found for preprocessing")
@@ -100,7 +124,7 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         if not self.is_fitted:
             raise ValueError("TextPreprocessor must be fitted before transform")
 
-        text_columns = self._get_text_columns(X)
+        text_columns = _get_text_columns(X)
 
         if not text_columns:
             return X
@@ -136,28 +160,6 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
 
         logger.info(f"Text preprocessing completed. New shape: {result.shape}")
         return result
-
-    def _get_text_columns(self, X) -> List[str]:
-        """Identify text columns in the DataFrame."""
-        if not hasattr(X, "columns"):
-            # If X is a numpy array, return empty list
-            return []
-
-        text_columns = []
-        for col in X.columns:
-            if X[col].dtype == "object":
-                # Check if column contains text-like data
-                sample_values = X[col].dropna().head(10)
-                if len(sample_values) > 0:
-                    # Check if values contain words (not just numbers or categories)
-                    text_ratio = sum(
-                        1
-                        for val in sample_values
-                        if isinstance(val, str) and len(val.split()) > 1
-                    ) / len(sample_values)
-                    if text_ratio > 0.3:  # 30% of values are multi-word
-                        text_columns.append(col)
-        return text_columns
 
     def _extract_sentiment_features(
         self, text_data: pd.Series
@@ -219,7 +221,7 @@ class TextEmbeddingTransformer(BaseEstimator, TransformerMixin):
         self, X: pd.DataFrame, y: Optional[pd.Series] = None
     ) -> "TextEmbeddingTransformer":
         """Fit the text embedding transformer."""
-        text_columns = self._get_text_columns(X)
+        text_columns = _get_text_columns(X)
 
         if not text_columns:
             logger.warning("No text columns found for embedding")
@@ -255,7 +257,7 @@ class TextEmbeddingTransformer(BaseEstimator, TransformerMixin):
         if not self.is_fitted:
             raise ValueError("TextEmbeddingTransformer must be fitted before transform")
 
-        text_columns = self._get_text_columns(X)
+        text_columns = _get_text_columns(X)
 
         if not text_columns:
             return X
@@ -321,28 +323,6 @@ class TextEmbeddingTransformer(BaseEstimator, TransformerMixin):
 
         logger.info(f"Text embedding completed. New shape: {result.shape}")
         return result
-
-    def _get_text_columns(self, X) -> List[str]:
-        """Identify text columns in the DataFrame."""
-        if not hasattr(X, "columns"):
-            # If X is a numpy array, return empty list
-            return []
-
-        text_columns = []
-        for col in X.columns:
-            if X[col].dtype == "object":
-                # Check if column contains text-like data
-                sample_values = X[col].dropna().head(10)
-                if len(sample_values) > 0:
-                    # Check if values contain words (not just numbers or categories)
-                    text_ratio = sum(
-                        1
-                        for val in sample_values
-                        if isinstance(val, str) and len(val.split()) > 1
-                    ) / len(sample_values)
-                    if text_ratio > 0.3:  # 30% of values are multi-word
-                        text_columns.append(col)
-        return text_columns
 
 
 class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
@@ -953,3 +933,83 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
 
         logger.info(f"Advanced preprocessing completed. Final shape: {result.shape}")
         return result
+
+
+class TextFeatureExtractor(BaseEstimator, TransformerMixin):
+    """Extract features from text columns."""
+
+    def __init__(self, max_features: int = 100, min_df: int = 2):
+        self.max_features = max_features
+        self.min_df = min_df
+        self.vectorizer = None
+        self.text_columns = []
+        self.is_fitted = False
+
+    def fit(self, X: pd.DataFrame, y=None):
+        """Fit text feature extractor."""
+        # Identify text columns (long string columns)
+        self.text_columns = []
+        for col in X.columns:
+            if X[col].dtype == "object":
+                avg_length = X[col].astype(str).str.len().mean()
+                if avg_length > 20:  # Arbitrary threshold
+                    self.text_columns.append(col)
+
+        if self.text_columns:
+            # Combine all text columns
+            text_data = (
+                X[self.text_columns].fillna("").astype(str).agg(" ".join, axis=1)
+            )
+
+            self.vectorizer = TfidfVectorizer(
+                max_features=self.max_features,
+                min_df=self.min_df,
+                stop_words="english",
+            )
+            self.vectorizer.fit(text_data)
+
+        self.is_fitted = True
+        self.feature_names_in_ = X.columns.tolist()
+        return self
+
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Transform text columns."""
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before transform")
+
+        X_transformed = X.copy()
+
+        if self.text_columns and self.vectorizer is not None:
+            # Combine text columns
+            text_data = (
+                X[self.text_columns].fillna("").astype(str).agg(" ".join, axis=1)
+            )
+
+            # Extract features
+            text_features = self.vectorizer.transform(text_data)
+            feature_names = [f"text_feature_{i}" for i in range(text_features.shape[1])]
+
+            # Create DataFrame with text features
+            text_df = pd.DataFrame(
+                text_features.toarray(), columns=feature_names, index=X.index
+            )
+
+            # Remove original text columns and add features
+            X_transformed = X_transformed.drop(columns=self.text_columns)
+            X_transformed = pd.concat([X_transformed, text_df], axis=1)
+
+        return X_transformed
+
+    def get_feature_names_out(self, input_features=None):
+        """Get output feature names for transformation."""
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before get_feature_names_out")
+
+        if input_features is None:
+            return self.feature_names_in_
+        else:
+            return input_features
+
+    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+        """Fit and transform in one step."""
+        return self.fit(X, y).transform(X)

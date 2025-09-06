@@ -317,10 +317,12 @@ class AgentLoop:
             json.dump(original_feature_names, f, indent=2)
 
         # Save best model or ensemble
+        best_model = None
         if self.ensemble_model:
             import joblib
 
             joblib.dump(self.ensemble_model, self.artifacts_dir / "model.joblib")
+            best_model = self.ensemble_model
         elif self.trial_results:
             # Save best single model
             best_result = max(self.trial_results, key=lambda x: x.score)
@@ -338,15 +340,15 @@ class AgentLoop:
             joblib.dump(best_model, self.artifacts_dir / "model.joblib")
 
         # Generate model card
-        if self.config.export.generate_model_card:
-            card_generator = ModelCardGenerator()
-            model_card = card_generator.generate_card(
-                trial_results=self.trial_results,
-                ensemble_model=self.ensemble_model,
-                task_type=task_type,
-                dataset_profile=self.metadata.dataset_profile,
+        if self.config.export.generate_model_card and best_model is not None:
+            card_generator = ModelCardGenerator(task_type)
+            model_card = card_generator.generate_model_card(
+                model=best_model,
+                X=X_processed,
+                y=y_processed,
             )
-            card_generator.save_card(model_card, self.artifacts_dir / "model_card.md")
+            with open(self.artifacts_dir / "model_card.md", "w") as f:
+                f.write(model_card)
 
         logger.info(f"Results exported to {self.artifacts_dir}")
 
