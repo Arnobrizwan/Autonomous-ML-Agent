@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.metrics import (
@@ -209,7 +210,7 @@ class MetricsCollector:
         # Basic regression metrics
         metrics["mae"] = mean_absolute_error(y_true, y_pred)
         metrics["mse"] = mean_squared_error(y_true, y_pred)
-        metrics["rmse"] = mean_squared_error(y_true, y_pred, squared=False)
+        metrics["rmse"] = np.sqrt(mean_squared_error(y_true, y_pred))
         metrics["r2"] = r2_score(y_true, y_pred)
 
         # Additional regression metrics

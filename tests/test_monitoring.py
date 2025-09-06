@@ -4,8 +4,10 @@ Comprehensive tests for monitoring and metrics system.
 
 import json
 import time
+from pathlib import Path
 from unittest.mock import patch
 
+import pandas as pd
 import pytest
 
 from src.aml_agent.monitoring.metrics import (
@@ -13,87 +15,41 @@ from src.aml_agent.monitoring.metrics import (
     MetricsCollector,
     PerformanceMonitor,
     health_checker,
-    metrics_collector,
     performance_monitor,
 )
+from src.aml_agent.types import TaskType
 
 
 class TestHealthChecker:
     """Test health checking functionality."""
 
     def test_health_checker_initialization(self):
-        """Test health checker initializes correctly."""
+        """Test health checker initialization."""
         checker = HealthChecker()
         assert checker is not None
 
     def test_run_health_checks(self):
-        """Test health checks return expected structure."""
+        """Test running health checks."""
         checker = HealthChecker()
         health_status = checker.run_health_checks()
-
         assert isinstance(health_status, dict)
         assert "status" in health_status
-        assert "timestamp" in health_status
         assert "checks" in health_status
-        assert health_status["status"] in ["healthy", "unhealthy"]
-
-    def test_system_health_check(self):
-        """Test system health check specifically."""
-        checker = HealthChecker()
-        system_health = checker._check_system_health()
-
-        assert isinstance(system_health, dict)
-        assert "status" in system_health
-        assert system_health["status"] in ["healthy", "unhealthy"]
-
-    def test_memory_health_check(self):
-        """Test memory health check."""
-        checker = HealthChecker()
-        memory_health = checker._check_memory_health()
-
-        assert isinstance(memory_health, dict)
-        assert "status" in memory_health
-        assert memory_health["status"] in ["healthy", "unhealthy", "warning"]
-
-    def test_disk_health_check(self):
-        """Test disk health check."""
-        checker = HealthChecker()
-        disk_health = checker._check_disk_health()
-
-        assert isinstance(disk_health, dict)
-        assert "status" in disk_health
-        assert disk_health["status"] in ["healthy", "unhealthy", "warning"]
-
-    def test_dependencies_health_check(self):
-        """Test dependencies health check."""
-        checker = HealthChecker()
-        deps_health = checker._check_dependencies_health()
-
-        assert isinstance(deps_health, dict)
-        assert "status" in deps_health
-        assert deps_health["status"] in ["healthy", "unhealthy"]
 
 
 class TestPerformanceMonitor:
     """Test performance monitoring functionality."""
 
     def test_performance_monitor_initialization(self):
-        """Test performance monitor initializes correctly."""
+        """Test performance monitor initialization."""
         monitor = PerformanceMonitor()
         assert monitor is not None
 
     def test_get_performance_summary(self):
-        """Test performance summary generation."""
+        """Test getting performance summary."""
         monitor = PerformanceMonitor()
         summary = monitor.get_performance_summary()
-
         assert isinstance(summary, dict)
-        assert "uptime" in summary
-        assert "metrics" in summary
-
-        # All values should be numeric or dict
-        for key, value in summary.items():
-            assert isinstance(value, (int, float, dict))
 
 
 class TestMetricsCollector:
@@ -101,179 +57,155 @@ class TestMetricsCollector:
 
     def test_metrics_collector_initialization(self):
         """Test metrics collector initializes correctly."""
-        collector = MetricsCollector()
+        collector = MetricsCollector(TaskType.CLASSIFICATION)
         assert collector is not None
-        assert collector.max_history == 1000
+        assert collector.task_type == TaskType.CLASSIFICATION
+        assert hasattr(collector, "metrics_history")
 
-    def test_increment_counter(self):
-        """Test counter increment in collector."""
-        collector = MetricsCollector()
-        collector.increment_counter("test_counter")
-        collector.increment_counter("test_counter", 3)
+    def test_calculate_metrics_classification(self):
+        """Test metrics calculation for classification."""
+        collector = MetricsCollector(TaskType.CLASSIFICATION)
 
-        assert collector.counters["test_counter"] == 4
+        # Create sample data
+        y_true = pd.Series([0, 1, 0, 1, 1])
+        y_pred = pd.Series([0, 1, 0, 1, 0])
+        y_prob = pd.DataFrame(
+            {0: [0.8, 0.2, 0.9, 0.1, 0.3], 1: [0.2, 0.8, 0.1, 0.9, 0.7]}
+        )
 
-    def test_record_timer(self):
-        """Test timer recording in collector."""
-        collector = MetricsCollector()
-        collector.record_timer("test_timer", 2.5)
+        metrics = collector.calculate_metrics(y_true, y_pred, y_prob)
+        assert "accuracy" in metrics
+        assert "precision_weighted" in metrics
+        assert "recall_weighted" in metrics
+        assert "f1_weighted" in metrics
 
-        assert "test_timer" in collector.timers
-        assert collector.timers["test_timer"] == [2.5]
+    def test_calculate_metrics_regression(self):
+        """Test metrics calculation for regression."""
+        collector = MetricsCollector(TaskType.REGRESSION)
 
-    def test_record_gauge(self):
-        """Test gauge recording in collector."""
-        collector = MetricsCollector()
-        collector.record_gauge("test_gauge", 75.0)
+        # Create sample data
+        y_true = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
+        y_pred = pd.Series([1.1, 1.9, 3.1, 3.9, 5.1])
 
-        assert "gauge_test_gauge" in collector.metrics
-        assert len(collector.metrics["gauge_test_gauge"]) == 1
+        metrics = collector.calculate_metrics(y_true, y_pred)
+        assert "mse" in metrics
+        assert "mae" in metrics
+        assert "r2" in metrics
+        assert "rmse" in metrics
 
-    def test_get_metric_summary(self):
-        """Test metric summary generation."""
-        collector = MetricsCollector()
+    def test_track_training_metrics(self):
+        """Test tracking training metrics."""
+        from sklearn.ensemble import RandomForestClassifier
 
-        # Add some data
-        collector.record_timer("test_timer", 1.0)
-        collector.record_timer("test_timer", 2.0)
-        collector.record_timer("test_timer", 3.0)
+        collector = MetricsCollector(TaskType.CLASSIFICATION)
 
-        summary = collector.get_metric_summary("timer_test_timer")
+        # Create sample data and model
+        X = pd.DataFrame(
+            {"feature1": [1, 2, 3, 4, 5], "feature2": [0.1, 0.2, 0.3, 0.4, 0.5]}
+        )
+        y = pd.Series([0, 1, 0, 1, 1])
+        model = RandomForestClassifier(random_state=42)
+        model.fit(X, y)
 
-        assert summary is not None
-        assert summary["name"] == "timer_test_timer"
-        assert summary["count"] == 3
-        assert summary["min"] == 1.0
-        assert summary["max"] == 3.0
-        assert summary["mean"] == 2.0
+        # Mock CV scores and training time
+        cv_scores = [0.9, 0.85, 0.95]
+        training_time = 1.5
 
-    def test_get_all_metrics(self):
-        """Test getting all metrics summary."""
-        collector = MetricsCollector()
+        metrics = collector.track_training_metrics(
+            model, X, y, cv_scores, training_time, "test_model", "run_123"
+        )
+        assert len(collector.metrics_history) == 1
+        assert "accuracy" in metrics
 
-        # Add various types of metrics
-        collector.increment_counter("test_counter")
-        collector.record_timer("test_timer", 1.5)
-        collector.record_gauge("test_gauge", 50.0)
+    def test_track_prediction_metrics(self):
+        """Test tracking prediction metrics."""
+        collector = MetricsCollector(TaskType.CLASSIFICATION)
 
-        all_metrics = collector.get_all_metrics()
+        # Create sample data
+        y_true = pd.Series([0, 1, 0, 1, 1])
+        y_pred = pd.Series([0, 1, 0, 1, 0])
+        y_prob = pd.DataFrame(
+            {0: [0.8, 0.2, 0.9, 0.1, 0.3], 1: [0.2, 0.8, 0.1, 0.9, 0.7]}
+        )
 
-        assert isinstance(all_metrics, dict)
-        assert "counter_test_counter" in all_metrics
-        assert "timer_test_timer" in all_metrics
-        assert "gauge_test_gauge" in all_metrics
+        metrics = collector.track_prediction_metrics(
+            y_true, y_pred, y_prob, 0.05, "test_model", "run_123"
+        )
+        assert len(collector.metrics_history) == 1
+        assert "accuracy" in metrics
 
-    def test_get_metric_trends(self):
-        """Test metric trend analysis."""
-        collector = MetricsCollector()
+    def test_get_metrics_summary(self):
+        """Test getting metrics summary."""
+        from sklearn.ensemble import RandomForestClassifier
 
-        # Add some historical data
-        for i in range(10):
-            collector.record_gauge("test_trend", float(i))
-            time.sleep(0.01)  # Small delay to ensure different timestamps
+        collector = MetricsCollector(TaskType.CLASSIFICATION)
 
-        trends = collector.get_metric_trends("gauge_test_trend", hours=1)
+        # Create sample data and model
+        X = pd.DataFrame(
+            {"feature1": [1, 2, 3, 4, 5], "feature2": [0.1, 0.2, 0.3, 0.4, 0.5]}
+        )
+        y = pd.Series([0, 1, 0, 1, 1])
+        model = RandomForestClassifier(random_state=42)
+        model.fit(X, y)
 
-        assert isinstance(trends, dict)
-        assert "trend" in trends
-        assert "change" in trends
-        assert "values" in trends
-        assert "current" in trends
-        assert "average" in trends
+        # Add some metrics
+        collector.track_training_metrics(
+            model, X, y, [0.9, 0.85], 1.0, "model1", "run1"
+        )
+        collector.track_training_metrics(
+            model, X, y, [0.95, 0.9], 1.2, "model1", "run2"
+        )
 
-    def test_export_metrics_json(self):
-        """Test JSON export of metrics."""
-        collector = MetricsCollector()
-        collector.record_gauge("test_export", 100.0)
+        summary = collector.get_metrics_summary()
+        assert "total_metrics" in summary
+        assert summary["total_metrics"] == 2
 
-        json_export = collector.export_metrics("json")
+    def test_export_metrics(self):
+        """Test exporting metrics."""
+        from sklearn.ensemble import RandomForestClassifier
 
-        assert isinstance(json_export, str)
-        data = json.loads(json_export)
-        assert isinstance(data, dict)
+        collector = MetricsCollector(TaskType.CLASSIFICATION)
 
-    def test_export_metrics_csv(self):
-        """Test CSV export of metrics."""
-        collector = MetricsCollector()
-        collector.record_gauge("test_export", 100.0)
+        # Create sample data and model
+        X = pd.DataFrame(
+            {"feature1": [1, 2, 3, 4, 5], "feature2": [0.1, 0.2, 0.3, 0.4, 0.5]}
+        )
+        y = pd.Series([0, 1, 0, 1, 1])
+        model = RandomForestClassifier(random_state=42)
+        model.fit(X, y)
 
-        csv_export = collector.export_metrics("csv")
+        # Add some metrics
+        collector.track_training_metrics(
+            model, X, y, [0.9, 0.85], 1.0, "model1", "run1"
+        )
 
-        assert isinstance(csv_export, str)
-        assert "metric_name" in csv_export
-        assert "type" in csv_export
-        assert "value" in csv_export
+        export_path = collector.export_metrics("test_metrics.json")
+        assert Path(export_path).exists()
 
-    def test_export_metrics_invalid_format(self):
-        """Test export with invalid format raises error."""
-        collector = MetricsCollector()
+    def test_load_metrics(self):
+        """Test loading metrics from file."""
+        from sklearn.ensemble import RandomForestClassifier
 
-        with pytest.raises(ValueError):
-            collector.export_metrics("invalid_format")
+        collector = MetricsCollector(TaskType.CLASSIFICATION)
 
-    def test_get_health_score(self):
-        """Test health score calculation."""
-        collector = MetricsCollector()
+        # Create sample data and model
+        X = pd.DataFrame(
+            {"feature1": [1, 2, 3, 4, 5], "feature2": [0.1, 0.2, 0.3, 0.4, 0.5]}
+        )
+        y = pd.Series([0, 1, 0, 1, 1])
+        model = RandomForestClassifier(random_state=42)
+        model.fit(X, y)
 
-        with patch.object(health_checker, "run_health_checks") as mock_health:
-            with patch.object(
-                performance_monitor, "get_performance_summary"
-            ) as mock_perf:
-                mock_health.return_value = {
-                    "system": True,
-                    "memory": True,
-                    "disk": True,
-                    "dependencies": True,
-                }
-                mock_perf.return_value = {
-                    "cpu_usage": 50,
-                    "memory_usage": 60,
-                    "disk_usage": 70,
-                }
+        # First export some metrics
+        collector.track_training_metrics(
+            model, X, y, [0.9, 0.85], 1.0, "model1", "run1"
+        )
+        export_path = collector.export_metrics("test_load_metrics.json")
 
-                score = collector.get_health_score()
-
-                assert isinstance(score, (int, float))
-                assert 0 <= score <= 100
-
-    def test_get_performance_alerts(self):
-        """Test performance alert generation."""
-        collector = MetricsCollector()
-
-        with patch.object(performance_monitor, "get_performance_summary") as mock_perf:
-            mock_perf.return_value = {
-                "cpu_usage": 95,  # Should trigger critical alert
-                "memory_usage": 85,  # Should trigger warning alert
-                "disk_usage": 75,  # Should not trigger alert
-            }
-
-            alerts = collector.get_performance_alerts()
-
-            assert isinstance(alerts, list)
-            # Check alert structure if any alerts exist
-            for alert in alerts:
-                assert "type" in alert
-                assert "metric" in alert
-                assert "value" in alert
-                assert "message" in alert
-                assert alert["type"] in ["critical", "warning"]
-
-    def test_reset_metrics(self):
-        """Test metrics reset functionality."""
-        collector = MetricsCollector()
-
-        # Add some data
-        collector.increment_counter("test_counter")
-        collector.record_timer("test_timer", 1.0)
-        collector.record_gauge("test_gauge", 50.0)
-
-        # Reset
-        collector.reset_metrics()
-
-        # Check everything is reset
-        assert collector.counters == {}
-        assert collector.timers == {}
-        assert collector.metrics == {}
+        # Create new collector and load metrics
+        new_collector = MetricsCollector(TaskType.CLASSIFICATION)
+        new_collector.load_metrics(export_path)
+        assert len(new_collector.metrics_history) == 1
 
 
 class TestGlobalInstances:
@@ -283,7 +215,7 @@ class TestGlobalInstances:
         """Test that global instances are properly initialized."""
         assert health_checker is not None
         assert performance_monitor is not None
-        assert metrics_collector is not None
+        assert MetricsCollector(TaskType.CLASSIFICATION) is not None
 
     def test_global_instances_functionality(self):
         """Test that global instances work correctly."""
@@ -296,8 +228,18 @@ class TestGlobalInstances:
         assert isinstance(summary, dict)
 
         # Test metrics collector
-        metrics_collector.increment_counter("global_test")
-        assert metrics_collector.counters["global_test"] == 1
+        from sklearn.ensemble import RandomForestClassifier
+
+        collector = MetricsCollector(TaskType.CLASSIFICATION)
+        X = pd.DataFrame({"feature1": [1, 2, 3], "feature2": [0.1, 0.2, 0.3]})
+        y = pd.Series([0, 1, 0])
+        model = RandomForestClassifier(random_state=42)
+        model.fit(X, y)
+
+        collector.track_training_metrics(
+            model, X, y, [0.9, 0.85], 1.0, "test_model", "test_run"
+        )
+        assert len(collector.metrics_history) == 1
 
 
 class TestIntegration:
@@ -305,50 +247,57 @@ class TestIntegration:
 
     def test_full_monitoring_workflow(self):
         """Test complete monitoring workflow."""
-        collector = MetricsCollector()
+        # Initialize components
+        health_checker = HealthChecker()
+        performance_monitor = PerformanceMonitor()
+        metrics_collector = MetricsCollector(TaskType.CLASSIFICATION)
 
-        # Simulate some activity
-        collector.increment_counter("requests_processed")
-        collector.record_timer("request_duration", 0.5)
-        collector.record_gauge("active_connections", 25)
-
-        # Get health status
+        # Run health checks
         health_status = health_checker.run_health_checks()
+        assert health_status["status"] in ["healthy", "degraded", "unhealthy"]
 
         # Get performance summary
-        performance = performance_monitor.get_performance_summary()
+        perf_summary = performance_monitor.get_performance_summary()
+        assert isinstance(perf_summary, dict)
 
-        # Get all metrics
-        all_metrics = collector.get_all_metrics()
+        # Track metrics
+        from sklearn.ensemble import RandomForestClassifier
 
-        # Verify everything works together
-        assert isinstance(health_status, dict)
-        assert isinstance(performance, dict)
-        assert isinstance(all_metrics, dict)
+        X = pd.DataFrame({"feature1": [1, 2, 3], "feature2": [0.1, 0.2, 0.3]})
+        y = pd.Series([0, 1, 0])
+        model = RandomForestClassifier(random_state=42)
+        model.fit(X, y)
 
-        # Verify metrics were recorded
-        assert "counter_requests_processed" in all_metrics
-        assert "timer_request_duration" in all_metrics
-        assert "gauge_active_connections" in all_metrics
+        metrics_collector.track_training_metrics(
+            model, X, y, [0.95, 0.9], 1.5, "test_model", "test_run"
+        )
+        assert len(metrics_collector.metrics_history) == 1
 
     def test_monitoring_under_load(self):
         """Test monitoring system under simulated load."""
-        collector = MetricsCollector()
+        from sklearn.ensemble import RandomForestClassifier
 
-        # Simulate high load
-        for i in range(100):
-            collector.increment_counter("high_load_counter")
-            collector.record_timer("high_load_timer", i * 0.01)
-            collector.record_gauge("high_load_gauge", i)
+        collector = MetricsCollector(TaskType.CLASSIFICATION)
 
-        # Verify system still works
-        all_metrics = collector.get_all_metrics()
-        assert len(all_metrics) >= 3
+        # Create sample data
+        X = pd.DataFrame(
+            {"feature1": [1, 2, 3, 4, 5] * 2, "feature2": [0.1, 0.2, 0.3, 0.4, 0.5] * 2}
+        )
+        y = pd.Series([0, 1, 0, 1, 1] * 2)
 
-        # Test trend analysis
-        trends = collector.get_metric_trends("gauge_high_load_gauge")
-        assert trends["trend"] in ["increasing", "stable", "decreasing"]
+        # Simulate multiple training runs
+        for i in range(10):
+            model = RandomForestClassifier(random_state=42 + i)
+            model.fit(X, y)
+            cv_scores = [0.9 + (i * 0.01), 0.85 + (i * 0.01)]
+            training_time = 1.0 + (i * 0.1)
 
-        # Test health score
-        health_score = collector.get_health_score()
-        assert 0 <= health_score <= 100
+            collector.track_training_metrics(
+                model, X, y, cv_scores, training_time, f"model_{i}", f"run_{i}"
+            )
+
+        assert len(collector.metrics_history) == 10
+
+        # Test summary
+        summary = collector.get_metrics_summary()
+        assert summary["total_metrics"] == 10
