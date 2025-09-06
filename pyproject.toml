@@ -55,6 +55,11 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::sklearn.exceptions.ConvergenceWarning",
+    "ignore::DeprecationWarning:sklearn.utils._tags",
+    "ignore:.*CatBoostClassifier.*__sklearn_tags__.*:DeprecationWarning"
+]
 
 [tool.black]
 line-length = 88

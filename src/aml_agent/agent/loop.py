@@ -327,14 +327,15 @@ class AgentLoop:
         elif self.trial_results:
             # Save best single model
             best_result = max(self.trial_results, key=lambda x: x.score)
-            self.trainer.train_model(best_result.model_type, X, y, best_result.params)
             # Extract the actual model from the trial result
-            from ..models.registries import get_model_factory
+            from ..models.registries import get_model_factory, validate_model_params
 
+            # Validate parameters before creating model
+            validated_params = validate_model_params(best_result.model_type, best_result.params)
             best_model = get_model_factory(
-                best_result.model_type, task_type, best_result.params
+                best_result.model_type, task_type, validated_params
             )
-            best_model.fit(X_processed, y)
+            best_model.fit(X_processed, y_processed)
 
             import joblib
 
@@ -345,8 +346,8 @@ class AgentLoop:
             card_generator = ModelCardGenerator(task_type)
             model_card = card_generator.generate_model_card(
                 model=best_model,
-                X=X,
-                y=y,
+                X=X_processed,
+                y=y_processed,
             )
             with open(self.artifacts_dir / "model_card.md", "w") as f:
                 f.write(model_card)

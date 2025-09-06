@@ -207,7 +207,7 @@ def get_model_factory(
 def _get_default_params(model_type: ModelType, task_type: TaskType) -> Dict[str, Any]:
     """Get default parameters for model type."""
     defaults = {
-        ModelType.LOGISTIC_REGRESSION: {"random_state": 42, "max_iter": 1000},
+        ModelType.LOGISTIC_REGRESSION: {"random_state": 42, "max_iter": 5000},
         ModelType.LINEAR_REGRESSION: {},
         ModelType.RANDOM_FOREST: {"random_state": 42, "n_estimators": 100},
         ModelType.GRADIENT_BOOSTING: {"random_state": 42, "n_estimators": 100},
