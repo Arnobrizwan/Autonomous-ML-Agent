@@ -84,6 +84,7 @@ export:
   generate_model_card: true
   generate_plots: true
   format: "joblib"            # "joblib" | "pickle"
+  artifacts_dir: "artifacts"  # Directory to save artifacts
 
 # API settings
 api:

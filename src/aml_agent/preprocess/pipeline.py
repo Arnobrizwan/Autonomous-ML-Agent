@@ -165,21 +165,10 @@ class PreprocessingPipeline:
         result = result.fillna(0)
 
         # Apply advanced feature engineering if enabled
-        if self.advanced_transformers is not None:
+        if self.advanced_pipeline is not None:
             logger.info("Applying advanced feature engineering to transformed data...")
             try:
-                # Apply polynomial features
-                if "polynomial_generator" in self.advanced_transformers:
-                    result = self.advanced_transformers[
-                        "polynomial_generator"
-                    ].fit_transform(result)
-
-                # Apply feature selection
-                if "feature_selector" in self.advanced_transformers:
-                    result = self.advanced_transformers[
-                        "feature_selector"
-                    ].fit_transform(result)
-
+                result = self.advanced_pipeline.transform(result)
                 logger.info(f"Advanced features applied. Final shape: {result.shape}")
             except Exception as e:
                 logger.warning(f"Advanced feature engineering failed: {e}")
@@ -213,15 +202,18 @@ class PreprocessingPipeline:
                 ("numeric_imputation", numeric_imputer, numeric_columns)
             )
 
-        # Imputation for categorical columns
+        # Imputation for categorical columns (only if they don't overlap with numeric)
         if categorical_columns and self.config.handle_missing:
-            categorical_imputer = ImputationTransformer(
-                numeric_strategy=self.config.impute_numeric,
-                categorical_strategy=self.config.impute_categorical,
-            )
-            transformers.append(
-                ("categorical_imputation", categorical_imputer, categorical_columns)
-            )
+            # Only process categorical columns that are not already processed as numeric
+            remaining_categorical = [col for col in categorical_columns if col not in numeric_columns]
+            if remaining_categorical:
+                categorical_imputer = ImputationTransformer(
+                    numeric_strategy=self.config.impute_numeric,
+                    categorical_strategy=self.config.impute_categorical,
+                )
+                transformers.append(
+                    ("categorical_imputation", categorical_imputer, remaining_categorical)
+                )
 
         # DateTime expansion
         if datetime_columns and self.config.datetime_expansion:
@@ -247,7 +239,7 @@ class PreprocessingPipeline:
 
         # Outlier handling
         if self.config.handle_outliers and numeric_columns:
-            outlier_indices = self.outlier_detector.outlier_indices
+            outlier_indices = list(self.outlier_detector.outlier_indices)
             outlier_handler = OutlierHandler(
                 method="clip", outlier_indices=outlier_indices
             )
@@ -262,12 +254,26 @@ class PreprocessingPipeline:
             # If no transformers, create a simple passthrough
             from sklearn.preprocessing import FunctionTransformer
 
-            self.pipeline = FunctionTransformer(lambda x: x)
+            def identity_func(x):
+                return x
+
+            self.pipeline = FunctionTransformer(identity_func)
 
     def _get_feature_names(self, X: pd.DataFrame) -> List[str]:
         """Get feature names after transformation."""
         if hasattr(self.pipeline, "get_feature_names_out"):
-            return self.pipeline.get_feature_names_out().tolist()
+            feature_names = self.pipeline.get_feature_names_out().tolist()
+            # Ensure unique feature names
+            unique_names = []
+            for name in feature_names:
+                if name in unique_names:
+                    counter = 1
+                    while f"{name}_{counter}" in unique_names:
+                        counter += 1
+                    unique_names.append(f"{name}_{counter}")
+                else:
+                    unique_names.append(name)
+            return unique_names
         else:
             return [f"feature_{i}" for i in range(X.shape[1])]
 

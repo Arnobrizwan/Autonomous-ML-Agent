@@ -175,7 +175,7 @@ class OutlierDetector:
 
     def __init__(self, method: OutlierMethod = OutlierMethod.IQR):
         self.method = method
-        self.outlier_indices = set()
+        self.outlier_indices = []
         self.outlier_info = {}
 
     def detect_outliers(
@@ -214,7 +214,7 @@ class OutlierDetector:
             self.outlier_info["total_outliers"] += len(outliers)
 
             # Add to global outlier indices
-            self.outlier_indices.update(outliers)
+            self.outlier_indices.extend(outliers)
 
         logger.info(f"Outliers detected: {self.outlier_info['total_outliers']} total")
         return self.outlier_info

@@ -96,7 +96,6 @@ class EnsembleBuilder:
             ensemble = VotingClassifier(
                 estimators=estimators,
                 voting="soft" if self._supports_proba(estimators) else "hard",
-                random_state=self.random_seed,
             )
         else:
             ensemble = VotingRegressor(estimators=estimators)
@@ -329,9 +328,7 @@ class AdvancedEnsemble:
         estimators = [(f"model_{i}", model) for i, model in enumerate(models)]
 
         if self.task_type == TaskType.CLASSIFICATION:
-            return VotingClassifier(
-                estimators=estimators, random_state=self.random_seed
-            )
+            return VotingClassifier(estimators=estimators)
         else:
             return VotingRegressor(estimators=estimators)
 

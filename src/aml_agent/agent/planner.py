@@ -105,64 +105,40 @@ class LLMPlanner:
         )
 
     def _select_models_heuristic(self, context: PlanningContext) -> List[ModelType]:
-        """Select models using heuristic rules."""
-        models = []
-        profile = context.dataset_profile
-
-        # Always include basic models
-        models.extend(
-            [
-                ModelType.LOGISTIC_REGRESSION,
-                ModelType.RANDOM_FOREST,
-            ]
-        )
-
-        # Add regression models for regression tasks
-        if context.task_type == TaskType.REGRESSION:
-            models.extend(
-                [
-                    ModelType.LINEAR_REGRESSION,
-                    ModelType.GRADIENT_BOOSTING,
-                ]
-            )
-
-        # Add advanced models for larger datasets
-        if profile.n_rows > 1000:
-            models.extend(
-                [
-                    ModelType.XGBOOST,
-                    ModelType.LIGHTGBM,
-                ]
-            )
-
-        # Add MLP for complex patterns
-        if profile.n_cols > 10:
-            models.append(ModelType.MLP)
-
-        # Add kNN for smaller datasets
-        if profile.n_rows < 10000:
-            models.append(ModelType.KNN)
-
-        # Filter to available models
-        available_models = [m for m in models if m in context.available_models]
-
-        # Ensure we have at least 3 models
-        if len(available_models) < 3:
-            available_models.extend(context.available_models[:3])
-            available_models = list(set(available_models))
-
-        return available_models[:5]  # Limit to 5 models
+        """Select models using heuristic rules - following original prompt exactly."""
+        # As per original prompt: ALL these models must be tested
+        # (Logistic/Linear Regression, RandomForest, GradientBoosting, kNN, 
+        # MLPClassifier/Regressor, XGBoost, LightGBM, CatBoost)
+        
+        all_models = [
+            ModelType.LOGISTIC_REGRESSION,
+            ModelType.LINEAR_REGRESSION,
+            ModelType.RANDOM_FOREST,
+            ModelType.GRADIENT_BOOSTING,
+            ModelType.KNN,
+            ModelType.MLP,
+            ModelType.XGBOOST,
+            ModelType.LIGHTGBM,
+            ModelType.CATBOOST,
+        ]
+        
+        # Filter to available models only
+        available_models = [m for m in all_models if m in context.available_models]
+        
+        return available_models
 
     def _allocate_budget_heuristic(
         self, models: List[ModelType], context: PlanningContext
     ) -> Dict[ModelType, int]:
         """Allocate search budget across models."""
-        total_trials = min(50, context.time_budget_seconds // 10)  # Rough estimate
+        # Ensure minimum trials per model as per original prompt
         n_models = len(models)
-
+        min_trials_per_model = max(1, 50 // n_models)  # At least 1 trial per model
+        total_trials = min(100, context.time_budget_seconds // 5)  # More generous estimate
+        
         # Allocate more trials to promising models
         budgets = {}
-        base_trials = total_trials // n_models
+        base_trials = max(min_trials_per_model, total_trials // n_models)
 
         for i, model in enumerate(models):
             # Give more trials to ensemble methods
@@ -173,7 +149,7 @@ class LLMPlanner:
             else:
                 multiplier = 1.0
 
-            budgets[model] = int(base_trials * multiplier)
+            budgets[model] = max(1, int(base_trials * multiplier))
 
         return budgets
 

@@ -4,6 +4,7 @@ FastAPI service for serving ML models.
 
 import json
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -30,18 +31,22 @@ loaded_pipeline = None
 loaded_metadata = None
 artifact_exporter = ArtifactExporter()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan."""
+    global loaded_pipeline, loaded_metadata
+    logger.info("Starting Autonomous ML Agent API service")
+    yield
+    logger.info("Shutting down Autonomous ML Agent API service")
+
+
 app = FastAPI(
     title="Autonomous ML Agent API",
     description="API for serving machine learning models trained by the Autonomous ML Agent",
     version="1.0.0",
+    lifespan=lifespan,
 )
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the service on startup."""
-    global loaded_pipeline, loaded_metadata
-    logger.info("Starting Autonomous ML Agent API service")
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -291,6 +296,30 @@ async def root():
         },
         "documentation": "/docs",
     }
+
+
+def create_app(artifacts_dir: Path) -> FastAPI:
+    """Create FastAPI app with loaded model from artifacts directory."""
+    global loaded_pipeline, loaded_metadata
+
+    # Load model and metadata from artifacts
+    model_path = artifacts_dir / "pipeline.joblib"
+    metadata_path = artifacts_dir / "metadata.json"
+
+    if model_path.exists():
+        import joblib
+
+        loaded_pipeline = joblib.load(model_path)
+        logger.info(f"Loaded model from {model_path}")
+
+    if metadata_path.exists():
+        import json
+
+        with open(metadata_path, "r") as f:
+            loaded_metadata = json.load(f)
+        logger.info(f"Loaded metadata from {metadata_path}")
+
+    return app
 
 
 if __name__ == "__main__":

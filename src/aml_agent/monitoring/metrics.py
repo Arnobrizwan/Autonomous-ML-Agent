@@ -28,6 +28,78 @@ from ..types import MetricType, TaskType
 logger = get_logger()
 
 
+class HealthChecker:
+    """Health checker for ML models and system components."""
+
+    def __init__(self):
+        self.checks = []
+
+    def add_check(self, name: str, check_func):
+        """Add a health check function."""
+        self.checks.append((name, check_func))
+
+    def run_health_checks(self) -> Dict[str, Any]:
+        """Run all health checks and return status."""
+        results = {"status": "healthy", "checks": {}}
+        
+        for name, check_func in self.checks:
+            try:
+                result = check_func()
+                results["checks"][name] = {"status": "pass", "result": result}
+        except Exception as e:
+                results["checks"][name] = {"status": "fail", "error": str(e)}
+                results["status"] = "unhealthy"
+        
+        return results
+
+
+class PerformanceMonitor:
+    """Monitor performance metrics for ML models."""
+
+    def __init__(self):
+        self.metrics = []
+
+    def record_metric(self, name: str, value: float, timestamp: Optional[datetime] = None):
+        """Record a performance metric."""
+        if timestamp is None:
+            timestamp = datetime.now()
+        
+        self.metrics.append({
+            "name": name,
+            "value": value,
+            "timestamp": timestamp
+        })
+
+    def get_performance_summary(self) -> Dict[str, Any]:
+        """Get performance summary."""
+        if not self.metrics:
+            return {"status": "no_data"}
+        
+        # Group metrics by name
+        metric_groups = {}
+        for metric in self.metrics:
+            name = metric["name"]
+            if name not in metric_groups:
+                metric_groups[name] = []
+            metric_groups[name].append(metric["value"])
+        
+        summary = {}
+        for name, values in metric_groups.items():
+            summary[name] = {
+                "count": len(values),
+                "mean": sum(values) / len(values),
+                "min": min(values),
+                "max": max(values)
+                }
+
+        return summary
+
+
+# Global instances
+health_checker = HealthChecker()
+performance_monitor = PerformanceMonitor()
+
+
 class MetricsCollector:
     """Collect and track ML model metrics."""
 

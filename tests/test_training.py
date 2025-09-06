@@ -6,7 +6,7 @@ import pytest
 
 from src.aml_agent.models import ModelRegistry, ModelTrainer, get_model_factory
 from src.aml_agent.models.ensemble import EnsembleBuilder, create_ensemble
-from src.aml_agent.models.spaces import SearchSpaceGenerator, create_optuna_study
+from src.aml_agent.models.spaces import SearchSpaceBuilder, create_optuna_study
 from src.aml_agent.types import ModelType, SearchStrategy, TaskType
 from src.aml_agent.utils import create_sample_data
 
@@ -105,7 +105,7 @@ class TestModelTraining:
 
     def test_search_space_generator(self):
         """Test search space generation."""
-        generator = SearchSpaceGenerator()
+        generator = SearchSpaceBuilder()
 
         # Test search space retrieval
         space = generator.get_search_space(ModelType.LOGISTIC_REGRESSION)

@@ -221,7 +221,6 @@ def _get_default_params(model_type: ModelType, task_type: TaskType) -> Dict[str,
             "learning_rate": 0.1,
             "subsample": 0.8,
             "colsample_bytree": 0.8,
-            "early_stopping_rounds": 10,
             "eval_metric": (
                 "logloss" if task_type == TaskType.CLASSIFICATION else "rmse"
             ),
@@ -233,7 +232,6 @@ def _get_default_params(model_type: ModelType, task_type: TaskType) -> Dict[str,
             "learning_rate": 0.1,
             "subsample": 0.8,
             "colsample_bytree": 0.8,
-            "early_stopping_rounds": 10,
             "verbose": -1,
         },
         ModelType.CATBOOST: {
@@ -243,7 +241,6 @@ def _get_default_params(model_type: ModelType, task_type: TaskType) -> Dict[str,
             "learning_rate": 0.1,
             "subsample": 0.8,
             "colsample_bylevel": 0.8,
-            "early_stopping_rounds": 10,
             "verbose": False,
         },
     }

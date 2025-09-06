@@ -307,9 +307,9 @@ class FeatureScaler(BaseEstimator, TransformerMixin):
 class OutlierHandler(BaseEstimator, TransformerMixin):
     """Handle outliers in numeric data."""
 
-    def __init__(self, method: str = "clip", outlier_indices: Optional[set] = None):
+    def __init__(self, method: str = "clip", outlier_indices: Optional[list] = None):
         self.method = method
-        self.outlier_indices = outlier_indices or set()
+        self.outlier_indices = outlier_indices if outlier_indices is not None else []
         self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y=None):
@@ -337,8 +337,9 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
 
         elif self.method == "remove":
             # Remove outlier rows
-            outlier_mask = X.index.isin(self.outlier_indices)
-            X_transformed = X_transformed[~outlier_mask]
+            if self.outlier_indices and len(self.outlier_indices) > 0:
+                outlier_mask = X.index.isin(self.outlier_indices)
+                X_transformed = X_transformed[~outlier_mask]
 
         return X_transformed
 

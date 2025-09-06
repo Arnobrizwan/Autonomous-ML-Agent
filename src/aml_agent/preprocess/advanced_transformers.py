@@ -870,10 +870,16 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
         ):
             result = self.text_preprocessor.transform(result)
             # Ensure unique column names
-            result.columns = [
-                f"{col}_{i}" if col in result.columns[:i] else col
-                for i, col in enumerate(result.columns)
-            ]
+            unique_cols = []
+            for col in result.columns:
+                if col in unique_cols:
+                    counter = 1
+                    while f"{col}_{counter}" in unique_cols:
+                        counter += 1
+                    unique_cols.append(f"{col}_{counter}")
+                else:
+                    unique_cols.append(col)
+            result.columns = unique_cols
 
         # Apply text embeddings
         if (
@@ -884,10 +890,16 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
         ):
             result = self.text_embedder.transform(result)
             # Ensure unique column names
-            result.columns = [
-                f"{col}_{i}" if col in result.columns[:i] else col
-                for i, col in enumerate(result.columns)
-            ]
+            unique_cols = []
+            for col in result.columns:
+                if col in unique_cols:
+                    counter = 1
+                    while f"{col}_{counter}" in unique_cols:
+                        counter += 1
+                    unique_cols.append(f"{col}_{counter}")
+                else:
+                    unique_cols.append(col)
+            result.columns = unique_cols
 
         # Apply polynomial features
         if (
@@ -898,10 +910,16 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
         ):
             result = self.poly_generator.transform(result)
             # Ensure unique column names
-            result.columns = [
-                f"{col}_{i}" if col in result.columns[:i] else col
-                for i, col in enumerate(result.columns)
-            ]
+            unique_cols = []
+            for col in result.columns:
+                if col in unique_cols:
+                    counter = 1
+                    while f"{col}_{counter}" in unique_cols:
+                        counter += 1
+                    unique_cols.append(f"{col}_{counter}")
+                else:
+                    unique_cols.append(col)
+            result.columns = unique_cols
 
         # Apply outlier detection
         if (
@@ -912,10 +930,16 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
         ):
             result = self.outlier_detector.transform(result)
             # Ensure unique column names
-            result.columns = [
-                f"{col}_{i}" if col in result.columns[:i] else col
-                for i, col in enumerate(result.columns)
-            ]
+            unique_cols = []
+            for col in result.columns:
+                if col in unique_cols:
+                    counter = 1
+                    while f"{col}_{counter}" in unique_cols:
+                        counter += 1
+                    unique_cols.append(f"{col}_{counter}")
+                else:
+                    unique_cols.append(col)
+            result.columns = unique_cols
 
         # Apply feature selection
         if (
@@ -926,10 +950,16 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
         ):
             result = self.feature_selector.transform(result)
             # Ensure unique column names
-            result.columns = [
-                f"{col}_{i}" if col in result.columns[:i] else col
-                for i, col in enumerate(result.columns)
-            ]
+            unique_cols = []
+            for col in result.columns:
+                if col in unique_cols:
+                    counter = 1
+                    while f"{col}_{counter}" in unique_cols:
+                        counter += 1
+                    unique_cols.append(f"{col}_{counter}")
+                else:
+                    unique_cols.append(col)
+            result.columns = unique_cols
 
         logger.info(f"Advanced preprocessing completed. Final shape: {result.shape}")
         return result

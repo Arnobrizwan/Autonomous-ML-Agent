@@ -69,17 +69,15 @@ class SearchSpaceBuilder:
         """Logistic regression search space."""
         return {
             "C": FloatDistribution(0.001, 1000, log=True),
-            "penalty": CategoricalDistribution(["l1", "l2", "elasticnet"]),
+            "penalty": CategoricalDistribution(["l1", "l2"]),
             "solver": CategoricalDistribution(["liblinear", "saga"]),
             "max_iter": IntDistribution(100, 2000),
-            "l1_ratio": FloatDistribution(0.0, 1.0),
         }
 
     def _linear_regression_space(self) -> Dict[str, Any]:
         """Linear regression search space."""
         return {
             "fit_intercept": CategoricalDistribution([True, False]),
-            "normalize": CategoricalDistribution([True, False]),
         }
 
     def _random_forest_space(self) -> Dict[str, Any]:
@@ -149,8 +147,8 @@ class SearchSpaceBuilder:
             "subsample": FloatDistribution(0.5, 1.0),
             "colsample_bytree": FloatDistribution(0.5, 1.0),
             "colsample_bylevel": FloatDistribution(0.5, 1.0),
-            "reg_alpha": FloatDistribution(0, 10, log=True),
-            "reg_lambda": FloatDistribution(0, 10, log=True),
+            "reg_alpha": FloatDistribution(0.01, 10, log=True),  # Fixed: was 0
+            "reg_lambda": FloatDistribution(0.01, 10, log=True),  # Fixed: was 0
             "gamma": FloatDistribution(0, 5),
             "min_child_weight": IntDistribution(1, 10),
         }
@@ -163,8 +161,8 @@ class SearchSpaceBuilder:
             "learning_rate": FloatDistribution(0.01, 0.3, log=True),
             "subsample": FloatDistribution(0.5, 1.0),
             "colsample_bytree": FloatDistribution(0.5, 1.0),
-            "reg_alpha": FloatDistribution(0, 10, log=True),
-            "reg_lambda": FloatDistribution(0, 10, log=True),
+            "reg_alpha": FloatDistribution(0.01, 10, log=True),  # Fixed: was 0
+            "reg_lambda": FloatDistribution(0.01, 10, log=True),  # Fixed: was 0
             "min_child_samples": IntDistribution(5, 100),
             "num_leaves": IntDistribution(10, 300),
         }
@@ -176,7 +174,7 @@ class SearchSpaceBuilder:
             "depth": IntDistribution(3, 15),
             "learning_rate": FloatDistribution(0.01, 0.3, log=True),
             "l2_leaf_reg": FloatDistribution(1, 10, log=True),
-            "bootstrap_type": CategoricalDistribution(["Bayesian", "Bernoulli", "MVS"]),
+            "bootstrap_type": CategoricalDistribution(["Bernoulli", "MVS"]),  # Removed Bayesian
             "subsample": FloatDistribution(0.5, 1.0),
             "colsample_bylevel": FloatDistribution(0.5, 1.0),
             "min_child_samples": IntDistribution(5, 100),

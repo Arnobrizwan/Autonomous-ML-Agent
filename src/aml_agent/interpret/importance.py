@@ -21,8 +21,9 @@ logger = get_logger()
 class FeatureImportanceAnalyzer:
     """Analyze feature importance for trained models."""
 
-    def __init__(self, task_type: TaskType):
+    def __init__(self, task_type: TaskType, random_seed: int = 42):
         self.task_type = task_type
+        self.random_seed = random_seed
 
     def get_feature_importance(
         self, model: BaseEstimator, X: pd.DataFrame, y: pd.Series, method: str = "auto"
@@ -107,7 +108,12 @@ class FeatureImportanceAnalyzer:
         try:
             # Calculate permutation importance
             perm_importance = permutation_importance(
-                model, X, y, n_repeats=n_repeats, random_state=42, n_jobs=-1
+                model,
+                X,
+                y,
+                n_repeats=n_repeats,
+                random_state=self.random_seed,
+                n_jobs=-1,
             )
 
             importance_dict = {
