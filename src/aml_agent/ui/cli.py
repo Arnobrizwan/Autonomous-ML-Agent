@@ -2,7 +2,6 @@
 Command-line interface for the Autonomous ML Agent.
 """
 
-import json
 import sys
 from pathlib import Path
 from typing import Optional
@@ -12,7 +11,7 @@ import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from ..config import create_default_config, load_config
+from ..config import load_config
 from ..export.model_card import ModelCardGenerator
 from ..logging import get_logger, setup_logging
 from ..service.app import app, create_app
@@ -89,12 +88,13 @@ def run(
 
         # Prepare features and target
         if config_obj.target and config_obj.target in data.columns:
-            X = data.drop(columns=[config_obj.target])
-            y = data[config_obj.target]
+            # X = ...  # unused
+            # y = ...  # unused
+            pass
         else:
             # Auto-detect target (last column)
-            X = data.iloc[:, :-1]
-            y = data.iloc[:, -1]
+            pass
+            # y = ...  # unused
 
         # Run pipeline
         with Progress(

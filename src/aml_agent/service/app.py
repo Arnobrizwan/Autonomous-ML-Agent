@@ -2,8 +2,6 @@
 FastAPI service for serving ML models.
 """
 
-import json
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -11,18 +9,10 @@ from typing import Any, Dict, List, Optional, Union
 import pandas as pd
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 
 from ..export.artifact import ArtifactExporter
 from ..logging import get_logger
-from ..service.schemas import (
-    BatchPredictionRequest,
-    BatchPredictionResponse,
-    HealthResponse,
-    ModelInfoResponse,
-    PredictionRequest,
-    PredictionResponse,
-)
+from .schemas import BatchPredictionRequest, BatchPredictionResponse, HealthResponse, ModelInfoResponse, PredictionRequest, PredictionResponse
 
 logger = get_logger()
 
@@ -71,7 +61,7 @@ async def load_model(run_id: str = Form(...)):
     try:
         # Load pipeline (model + preprocessor)
         loaded_pipeline = artifact_exporter.load_pipeline(run_id)
-        
+
         # Also load the preprocessor separately if available
         try:
             loaded_preprocessor = artifact_exporter.load_preprocessor(run_id)
@@ -142,7 +132,7 @@ async def predict_single(request: PredictionRequest):
         # Apply preprocessor if available
         if loaded_preprocessor is not None:
             data = loaded_preprocessor.transform(data)
-        
+
         # Make prediction
         prediction = loaded_pipeline.predict(data)[0]
 
@@ -247,7 +237,7 @@ async def predict_file(file: UploadFile = File(...)):
                 ]
 
         # Convert to CSV
-        csv_response = data_with_predictions.to_csv(index=False)
+        # csv_response = ...  # unused
 
         return JSONResponse(
             content=response_data,

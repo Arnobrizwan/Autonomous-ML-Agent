@@ -2,20 +2,14 @@
 Vibe Model - Clean Enterprise Dashboard for AI-Powered Machine Learning.
 """
 
-import json
-import os
-import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 from streamlit_option_menu import option_menu
 
-from ..agent.loop import run_autonomous_ml
-from ..config import create_default_config, load_config
 from ..export.artifact import ArtifactExporter
 from ..export.model_card import ModelCardGenerator
 from ..interpret.explain import ModelExplainer
@@ -443,7 +437,7 @@ def show_dashboard():
     fig = px.line(
         performance_data,
         x="Date",
-        y="Accuracy",
+        # y = ...  # unused
         title="Model Accuracy Over Time",
         color_discrete_sequence=["#667eea"],
     )
@@ -565,7 +559,7 @@ def show_data_upload():
             if len(missing_data) > 0:
                 fig = px.bar(
                     x=missing_data.values,
-                    y=missing_data.index,
+                    # y = ...  # unused
                     orientation="h",
                     title="Missing Values by Column",
                     color_discrete_sequence=["#dc2626"],
@@ -747,7 +741,7 @@ def show_pipeline_runner():
                 help="Scale features for better AI model performance",
             )
 
-    # Run pipeline
+        # Run pipeline
     st.markdown("## 🚀 Ready to Create Your AI Model?")
 
     if st.button(
@@ -788,11 +782,13 @@ def show_pipeline_runner():
             # Prepare data
             df = st.session_state.uploaded_data
             if st.session_state.target_column:
-                X = df.drop(columns=[st.session_state.target_column])
-                y = df[st.session_state.target_column]
+                # X = ...  # unused
+                # y = ...  # unused
+                pass
             else:
-                X = df.iloc[:, :-1]
-                y = df.iloc[:, -1]
+                # X = ...  # unused
+                # y = ...  # unused
+                pass
 
             # Update progress
             status_text.text("🔄 Initializing Vibe Model...")
@@ -904,7 +900,7 @@ def show_results():
     fig = px.bar(
         df_leaderboard,
         x="AI Model Type",
-        y="Accuracy",
+        # y = ...  # unused
         title="AI Model Accuracy Comparison",
         color="Accuracy",
         color_continuous_scale="Blues",
@@ -971,7 +967,7 @@ def show_model_analysis():
     fig = px.bar(
         feature_importance,
         x="Importance",
-        y="Data Column",
+        # y = ...  # unused
         orientation="h",
         title="Most Important Data Columns for Predictions",
         color="Importance",
@@ -1026,7 +1022,7 @@ def show_model_analysis():
     fig = px.bar(
         shap_data,
         x="Impact",
-        y="Data Column",
+        # y = ...  # unused
         orientation="h",
         title="How Each Column Influences AI Predictions",
         color="Impact",
@@ -1112,6 +1108,7 @@ def show_settings():
     # Model settings
     st.subheader("🤖 Model Settings")
 
+    # models_config = ...  # unused
     models_config = {
         "Logistic Regression": st.checkbox("Enable Logistic Regression", value=True),
         "Linear Regression": st.checkbox("Enable Linear Regression", value=True),
@@ -1225,8 +1222,8 @@ def show_interpretability():
                     try:
                         # Create sample data for analysis
                         df = create_sample_data(n_samples=100, n_features=5)
-                        X = df.iloc[:, :-1]
-                        y = df.iloc[:, -1]
+                        # X = ...  # unused
+                        # y = ...  # unused
 
                         # Initialize analyzer
                         from ..types import TaskType
@@ -1256,7 +1253,7 @@ def show_interpretability():
                             top_features = importance["sorted_features"][:10]
                             fig = px.bar(
                                 x=[f["importance"] for f in top_features],
-                                y=[f["feature"] for f in top_features],
+                                # y = ...  # unused
                                 orientation="h",
                                 title="Feature Importance",
                                 labels={"x": "Importance", "y": "Feature"},
@@ -1275,8 +1272,8 @@ def show_interpretability():
                     try:
                         # Create sample data
                         df = create_sample_data(n_samples=100, n_features=5)
-                        X = df.iloc[:, :-1]
-                        y = df.iloc[:, -1]
+                        # X = ...  # unused
+                        # y = ...  # unused
 
                         # Initialize explainer
                         from ..types import TaskType
@@ -1427,7 +1424,7 @@ def show_monitoring():
 
     fig = px.line(
         x=dates,
-        y=accuracy,
+        # y = ...  # unused
         title="Model Accuracy Over Time",
         labels={"x": "Date", "y": "Accuracy"},
     )
@@ -1440,7 +1437,7 @@ def show_meta_learning():
 
     # Initialize meta-learning components
     meta_store = MetaStore()
-    warmstart_manager = WarmStartManager(meta_store)
+    # warmstart_manager = ...  # unused
 
     # Meta-learning statistics
     st.subheader("📊 Meta Learning Statistics")

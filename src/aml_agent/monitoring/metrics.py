@@ -3,10 +3,9 @@ Monitoring and metrics collection for ML models.
 """
 
 import json
-import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from sklearn.base import BaseEstimator
@@ -23,7 +22,7 @@ from sklearn.metrics import (
 )
 
 from ..logging import get_logger
-from ..types import MetricType, TaskType
+from ..types import TaskType
 
 logger = get_logger()
 

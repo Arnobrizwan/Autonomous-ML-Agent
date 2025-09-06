@@ -2,10 +2,9 @@
 Model card generation for ML models.
 """
 
-import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 import pandas as pd
 from sklearn.base import BaseEstimator

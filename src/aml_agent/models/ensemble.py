@@ -2,18 +2,18 @@
 Ensemble learning utilities for combining multiple models.
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
+from sklearn.base import BaseEstimator
 from sklearn.ensemble import VotingClassifier, VotingRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import accuracy_score, r2_score
 from sklearn.model_selection import cross_val_score
 
 from ..logging import get_logger
-from ..types import ModelType, TaskType, TrialResult
+from ..types import TaskType, TrialResult
 
 logger = get_logger()
 

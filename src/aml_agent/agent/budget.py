@@ -5,10 +5,12 @@ Budget management for time-limited optimization.
 import time
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Optional
 
 from ..logging import get_logger
 from ..types import BudgetClock
+
+# Optional not used in this file
+
 
 logger = get_logger()
 

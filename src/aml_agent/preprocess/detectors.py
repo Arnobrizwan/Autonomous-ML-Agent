@@ -3,15 +3,17 @@ Data type and quality detectors for preprocessing pipeline.
 """
 
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import LabelEncoder
 
 from ..logging import get_logger
 from ..types import OutlierMethod
+
+# LabelEncoder not used in this file
+
 
 logger = get_logger()
 
@@ -251,9 +253,9 @@ class OutlierDetector:
         """Detect outliers using Isolation Forest."""
         try:
             # Reshape for sklearn
-            X = series.values.reshape(-1, 1)
+            # X = ...  # unused
             iso_forest = IsolationForest(contamination=0.1, random_state=42)
-            outlier_labels = iso_forest.fit_predict(X)
+            outlier_labels = iso_forest.fit_predict(series.values.reshape(-1, 1))
             outliers = series[outlier_labels == -1]
             return outliers.index.tolist()
         except Exception as e:

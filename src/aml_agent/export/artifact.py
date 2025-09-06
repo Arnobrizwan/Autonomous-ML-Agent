@@ -3,10 +3,9 @@ Artifact export functionality for saving models and metadata.
 """
 
 import json
-import pickle
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import joblib
 import pandas as pd
@@ -14,7 +13,7 @@ from sklearn.base import BaseEstimator
 from sklearn.pipeline import Pipeline
 
 from ..logging import get_logger
-from ..types import RunMetadata, TaskType
+from ..types import RunMetadata
 
 logger = get_logger()
 
@@ -207,7 +206,9 @@ class ArtifactExporter:
         if not pipeline_path.exists():
             pipeline_path = self.artifacts_dir / run_id / "model.joblib"
             if not pipeline_path.exists():
-                raise FileNotFoundError(f"Pipeline not found at {self.artifacts_dir / run_id / 'pipeline.joblib'} or {self.artifacts_dir / run_id / 'model.joblib'}")
+                raise FileNotFoundError(
+                    f"Pipeline not found at {self.artifacts_dir / run_id / 'pipeline.joblib'} or {self.artifacts_dir / run_id / 'model.joblib'}"
+                )
 
         pipeline = joblib.load(pipeline_path)
         logger.info(f"Pipeline loaded from {pipeline_path}")

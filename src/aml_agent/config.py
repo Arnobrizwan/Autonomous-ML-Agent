@@ -9,20 +9,19 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings
 
-from .types import (
-    EncodingMethod,
-    ImputationMethod,
-    LLMConfig,
-    MetricType,
-    ModelConfig,
-    OutlierMethod,
-    PreprocessingConfig,
-    SearchStrategy,
-    TaskType,
-)
+from .types import EncodingMethod, ImputationMethod, MetricType, OutlierMethod, SearchStrategy, TaskType, LLMConfig
 
 # Re-export PreprocessingConfig for backward compatibility
 __all__ = ["PreprocessingConfig"]
+
+
+class ModelConfig(BaseModel):
+    """Model configuration for individual models."""
+    
+    class_weight: Optional[str] = None
+    early_stopping: bool = False
+    validation_fraction: Optional[float] = None
+    random_state: Optional[int] = None
 
 
 class PreprocessingSettings(BaseModel):

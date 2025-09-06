@@ -15,6 +15,50 @@ Just upload your CSV file and get a complete ML solution with the best model, ex
 - **📱 Web Dashboard**: Beautiful interface to explore everything
 - **🔒 Production Ready**: Deploy anywhere with Docker
 
+## 🏗️ Architecture
+
+```mermaid
+graph TB
+    A[CSV Data Input] --> B[Data Profiling & Preprocessing]
+    B --> C[Task Type Detection]
+    C --> D[LLM-Guided Planning]
+    D --> E[Hyperparameter Optimization]
+    E --> F[Model Training & Evaluation]
+    F --> G[Ensemble Creation]
+    G --> H[Model Export & Artifacts]
+    H --> I[API Service]
+    H --> J[Web Dashboard]
+    H --> K[Model Card Generation]
+    
+    subgraph "Core Components"
+        B1[Data Profiler]
+        B2[Feature Engineering]
+        B3[Outlier Detection]
+    end
+    
+    subgraph "ML Pipeline"
+        E1[Optuna Optimization]
+        E2[Cross-Validation]
+        E3[Model Registry]
+    end
+    
+    subgraph "Deployment"
+        I1[FastAPI Server]
+        I2[Docker Container]
+        I3[Health Monitoring]
+    end
+    
+    B --> B1
+    B --> B2
+    B --> B3
+    E --> E1
+    E --> E2
+    E --> E3
+    I --> I1
+    I --> I2
+    I --> I3
+```
+
 ## 🚀 Super Quick Start (2 Minutes)
 
 **Just want to see it work? Run this:**

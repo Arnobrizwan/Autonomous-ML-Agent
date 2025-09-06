@@ -128,10 +128,11 @@ class AgentLoop:
         # Detect target if not provided
         if y is None:
             if self.config.target:
+                # Extract target column
                 y = X[self.config.target]
                 X = X.drop(columns=[self.config.target])
             else:
-                # Auto-detect target (last column if categorical/regression sensible)
+                # Auto-detect target (last column)
                 y = X.iloc[:, -1]
                 X = X.iloc[:, :-1]
 
@@ -344,8 +345,8 @@ class AgentLoop:
             card_generator = ModelCardGenerator(task_type)
             model_card = card_generator.generate_model_card(
                 model=best_model,
-                X=X_processed,
-                y=y_processed,
+                X=X,
+                y=y,
             )
             with open(self.artifacts_dir / "model_card.md", "w") as f:
                 f.write(model_card)

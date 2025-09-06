@@ -2,22 +2,13 @@
 LLM-guided planning for autonomous ML optimization.
 """
 
-import json
-import random
 from typing import Any, Dict, List, Optional
 
 import httpx
 from pydantic import BaseModel
 
 from ..logging import get_logger
-from ..types import (
-    DatasetProfile,
-    LLMConfig,
-    MetricType,
-    ModelType,
-    PlannerProposal,
-    TaskType,
-)
+from ..types import DatasetProfile, LLMConfig, MetricType, ModelType, PlannerProposal, TaskType
 
 logger = get_logger()
 

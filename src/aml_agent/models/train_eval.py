@@ -9,7 +9,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
-from sklearn.metrics import make_scorer
+
+# make_scorer imported later when needed
 from sklearn.model_selection import (
     KFold,
     StratifiedKFold,
