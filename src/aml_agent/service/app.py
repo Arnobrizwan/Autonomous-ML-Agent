@@ -28,6 +28,7 @@ logger = get_logger()
 
 # Global variables for loaded model
 loaded_pipeline = None
+loaded_preprocessor = None
 loaded_metadata = None
 artifact_exporter = ArtifactExporter()
 
@@ -65,11 +66,19 @@ async def healthz():
 @app.post("/load_model")
 async def load_model(run_id: str = Form(...)):
     """Load a model from artifacts."""
-    global loaded_pipeline, loaded_metadata
+    global loaded_pipeline, loaded_preprocessor, loaded_metadata
 
     try:
-        # Load pipeline
+        # Load pipeline (model + preprocessor)
         loaded_pipeline = artifact_exporter.load_pipeline(run_id)
+        
+        # Also load the preprocessor separately if available
+        try:
+            loaded_preprocessor = artifact_exporter.load_preprocessor(run_id)
+            logger.info(f"Preprocessor loaded successfully: {run_id}")
+        except FileNotFoundError:
+            loaded_preprocessor = None
+            logger.info(f"No separate preprocessor found for: {run_id}")
 
         # Load metadata
         loaded_metadata = artifact_exporter.load_metadata(run_id)
@@ -130,6 +139,10 @@ async def predict_single(request: PredictionRequest):
         # Convert request to DataFrame
         data = pd.DataFrame([request.data])
 
+        # Apply preprocessor if available
+        if loaded_preprocessor is not None:
+            data = loaded_preprocessor.transform(data)
+        
         # Make prediction
         prediction = loaded_pipeline.predict(data)[0]
 

@@ -213,6 +213,24 @@ class ArtifactExporter:
         logger.info(f"Pipeline loaded from {pipeline_path}")
         return pipeline
 
+    def load_preprocessor(self, run_id: str) -> Any:
+        """
+        Load a saved preprocessor.
+
+        Args:
+            run_id: Unique run identifier
+
+        Returns:
+            Loaded preprocessor
+        """
+        preprocessor_path = self.artifacts_dir / run_id / "preprocessor.joblib"
+        if not preprocessor_path.exists():
+            raise FileNotFoundError(f"Preprocessor not found at {preprocessor_path}")
+
+        preprocessor = joblib.load(preprocessor_path)
+        logger.info(f"Preprocessor loaded from {preprocessor_path}")
+        return preprocessor
+
     def load_model(self, run_id: str, model_name: str = "model") -> BaseEstimator:
         """
         Load a saved model.

@@ -111,10 +111,9 @@ python - <<PY > /tmp/payload.json
 import pandas as pd, json
 df=pd.read_csv('data/sample.csv')
 row=df.drop(columns=['label']).iloc[0].to_dict()
-# Use the original column names as expected by the API
+# Use the correct format expected by the API
 payload = {
-    "features": row,
-    "run_id": "$RUN_ID"
+    "data": row
 }
 print(json.dumps(payload))
 PY
