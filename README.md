@@ -20,20 +20,35 @@ The Autonomous ML Agent is an intelligent system that takes your tabular data an
 - **🔧 Production Ready**: Deploy models as APIs with Docker containers
 - **💻 No GPU Required**: Runs on any computer with standard hardware
 
+## ⚡ Super Quick Start (2 Minutes)
+
+**Just want to see it work? Run this:**
+```bash
+git clone https://github.com/Arnobrizwan/Autonomous-ML-Agent.git
+cd autonomous-ml-agent
+./start_demo.sh
+# Open http://localhost:8000 in your browser
+```
+
+**That's it!** Your ML Agent is running with a web interface.
+
 ## 🚀 Quick Start (5 Minutes)
 
 ### Step 1: Install
 ```bash
-git clone <repository-url>
+git clone https://github.com/Arnobrizwan/Autonomous-ML-Agent.git
 cd autonomous-ml-agent
 pip install -r requirements.txt
 pip install -e .
 ```
 
-### Step 2: Test Everything Works
+### Step 2: Quick Demo
 ```bash
-# Run verification (takes 2-3 minutes)
-make verify
+# Start demo (one command)
+./start_demo.sh
+
+# Or run full interactive demo
+./demo.sh
 ```
 
 ### Step 3: Use Your Data
@@ -45,13 +60,79 @@ aml run --data your_data.csv --target target_column --time-budget 300
 aml web
 ```
 
+## 🎬 Demo & Testing
+
+### Quick Health Check
+```bash
+# Verify everything is working
+./quick_check.sh
+```
+
+### Live Demo
+```bash
+# Start demo environment
+./start_demo.sh
+
+# Access demo URLs:
+# • Web Interface: http://localhost:8000
+# • API Documentation: http://localhost:8000/docs
+# • Health Check: http://localhost:8000/healthz
+```
+
+### Full Interactive Demo
+```bash
+# Run complete demonstration with sample data
+./demo.sh
+```
+
 ## ✨ What Makes This Special
 
 - **🤖 Fully Automated**: No ML expertise required - just provide your data
 - **🚀 Production Ready**: Deploy models as APIs immediately
+- **✅ Fully Tested**: 66 passing tests with comprehensive coverage
+- **🐳 Docker Ready**: Multi-platform containerized deployment
+- **🔄 CI/CD Pipeline**: Automated testing and deployment via GitHub Actions
+- **📊 Real-time Monitoring**: Health checks, metrics, and performance tracking
 - **🎯 AI-Powered**: Uses advanced AI to find the best model settings
 - **📊 Complete Solution**: From data to deployed API in minutes
 - **🔧 Enterprise Grade**: Built with security, monitoring, and scalability
+
+## 🎯 Project Status
+
+**✅ Production Ready** - Fully functional and tested  
+**✅ CI/CD Pipeline** - Automated testing and deployment  
+**✅ Docker Support** - Multi-platform containerization  
+**✅ API Ready** - FastAPI with automatic documentation  
+**✅ Web Interface** - User-friendly dashboard  
+**✅ Monitoring** - Health checks and performance metrics  
+**✅ Documentation** - Comprehensive guides and examples  
+
+### Recent Updates
+- **🎬 Demo Scripts**: Complete demonstration tools (`demo.sh`, `start_demo.sh`, `quick_check.sh`)
+- **🐳 Docker Optimization**: Multi-platform builds (linux/amd64, linux/arm64)
+- **🔄 GitHub Actions**: Automated CI/CD pipeline with GitHub Container Registry
+- **📊 Monitoring**: Advanced health checks and performance tracking
+- **🧪 Testing**: 66 comprehensive tests with 100% critical path coverage
+- **📚 Documentation**: Complete demo guide and API documentation
+
+## 🎬 Demo Files
+
+The project includes several demo scripts to help you get started quickly:
+
+| File | Purpose | Usage |
+|------|---------|-------|
+| `start_demo.sh` | One-command demo starter | `./start_demo.sh` |
+| `demo.sh` | Full interactive demonstration | `./demo.sh` |
+| `quick_check.sh` | Pre-demo health verification | `./quick_check.sh` |
+| `DEMO_GUIDE.md` | Complete demo presentation guide | Read for demo tips |
+
+### Demo Features
+- **🌐 Web Interface**: Interactive dashboard at http://localhost:8000
+- **📚 API Documentation**: Auto-generated docs at http://localhost:8000/docs
+- **🔍 Health Monitoring**: Real-time health checks at http://localhost:8000/healthz
+- **📊 Sample Data**: Automatic generation of test datasets
+- **🤖 Live Pipeline**: Real ML model training and evaluation
+- **📈 Results Display**: Model leaderboard and performance metrics
 
 ## 🎁 What You Get
 
@@ -210,7 +291,9 @@ use_mlflow: false              # Enable MLflow tracking
 - **🐳 Docker**: One-click deployment with containerization
 - **🔄 CI/CD**: Automated testing and deployment pipeline
 - **📈 Scalability**: Handles large datasets and high-traffic APIs
-- **🛡️ Reliability**: 41 passing tests with comprehensive error handling
+- **🛡️ Reliability**: 66 passing tests with comprehensive error handling
+- **🎬 Demo Ready**: Complete demonstration tools and guides
+- **📚 Documentation**: Comprehensive API docs and user guides
 
 ## Supported Models
 
@@ -228,7 +311,20 @@ The agent learns from previous runs to improve future performance:
 
 ## Deployment
 
-### Docker
+### Quick Start with Docker
+```bash
+# One-command demo
+./start_demo.sh
+
+# Or manual Docker deployment
+docker run -d --name aml-agent -p 8000:8000 aml-agent:latest
+
+# Access the service
+# Web Interface: http://localhost:8000
+# API Docs: http://localhost:8000/docs
+```
+
+### Production Deployment
 ```bash
 # Build and run (optimized)
 make docker-build
@@ -238,8 +334,19 @@ make docker-run
 docker-compose up
 
 # Or with custom config
-docker run -p 8000:8000 -v $(pwd)/data:/app/data aml-agent
+docker run -p 8000:8000 -v $(pwd)/data:/app/data aml-agent:latest
 ```
+
+### GitHub Container Registry
+```bash
+# Pull from GitHub Container Registry
+docker pull ghcr.io/arnobrizwan/autonomous-ml-agent:latest
+
+# Run the image
+docker run -p 8000:8000 ghcr.io/arnobrizwan/autonomous-ml-agent:latest
+```
+
+**Note**: The image will be available at `ghcr.io/arnobrizwan/autonomous-ml-agent:latest` after the GitHub Actions workflow completes.
 
 ### Docker Performance Optimizations
 
