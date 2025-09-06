@@ -9,7 +9,16 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings
 
-from .types import EncodingMethod, ImputationMethod, MetricType, OutlierMethod, SearchStrategy, TaskType, LLMConfig
+from .types import (
+    EncodingMethod,
+    ImputationMethod,
+    MetricType,
+    OutlierMethod,
+    PreprocessingConfig,
+    SearchStrategy,
+    TaskType,
+    LLMConfig,
+)
 
 # Re-export PreprocessingConfig for backward compatibility
 __all__ = ["PreprocessingConfig"]
@@ -128,6 +137,11 @@ class EnvironmentSettings(BaseSettings):
 
     openai_api_key: Optional[str] = Field(default=None)
     gemini_api_key: Optional[str] = Field(default=None)
+    google_api_key: Optional[str] = Field(default=None)
+    anthropic_api_key: Optional[str] = Field(default=None)
+    mistral_api_key: Optional[str] = Field(default=None)
+    together_api_key: Optional[str] = Field(default=None)
+    notdiamond_api_key: Optional[str] = Field(default=None)
     mlflow_tracking_uri: Optional[str] = Field(default=None)
     mlflow_experiment_name: str = Field(default="autonomous-ml-agent")
     log_level: str = Field(default="INFO")

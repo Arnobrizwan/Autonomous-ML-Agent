@@ -305,7 +305,7 @@ def create_app(artifacts_dir: Path) -> FastAPI:
     global loaded_pipeline, loaded_metadata
 
     # Load model and metadata from artifacts
-    model_path = artifacts_dir / "pipeline.joblib"
+    model_path = artifacts_dir / "model.joblib"
     metadata_path = artifacts_dir / "metadata.json"
 
     if model_path.exists():
