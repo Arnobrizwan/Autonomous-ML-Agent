@@ -2,6 +2,7 @@
 Vibe Model - Clean Enterprise Dashboard for AI-Powered Machine Learning.
 """
 
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -1222,8 +1223,8 @@ def show_interpretability():
                     try:
                         # Create sample data for analysis
                         df = create_sample_data(n_samples=100, n_features=5)
-                        # X = ...  # unused
-                        # y = ...  # unused
+                        X = df.drop("target", axis=1)
+                        y = df["target"]
 
                         # Initialize analyzer
                         from ..types import TaskType
@@ -1272,8 +1273,8 @@ def show_interpretability():
                     try:
                         # Create sample data
                         df = create_sample_data(n_samples=100, n_features=5)
-                        # X = ...  # unused
-                        # y = ...  # unused
+                        X = df.drop("target", axis=1)
+                        y = df["target"]
 
                         # Initialize explainer
                         from ..types import TaskType

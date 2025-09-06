@@ -331,7 +331,9 @@ class AgentLoop:
             from ..models.registries import get_model_factory, validate_model_params
 
             # Validate parameters before creating model
-            validated_params = validate_model_params(best_result.model_type, best_result.params)
+            validated_params = validate_model_params(
+                best_result.model_type, best_result.params
+            )
             best_model = get_model_factory(
                 best_result.model_type, task_type, validated_params
             )

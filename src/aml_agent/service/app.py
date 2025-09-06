@@ -12,7 +12,14 @@ from fastapi.responses import JSONResponse
 
 from ..export.artifact import ArtifactExporter
 from ..logging import get_logger
-from .schemas import BatchPredictionRequest, BatchPredictionResponse, HealthResponse, ModelInfoResponse, PredictionRequest, PredictionResponse
+from .schemas import (
+    BatchPredictionRequest,
+    BatchPredictionResponse,
+    HealthResponse,
+    ModelInfoResponse,
+    PredictionRequest,
+    PredictionResponse,
+)
 
 logger = get_logger()
 

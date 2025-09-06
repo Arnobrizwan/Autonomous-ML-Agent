@@ -12,12 +12,12 @@ from pydantic_settings import BaseSettings
 from .types import (
     EncodingMethod,
     ImputationMethod,
+    LLMConfig,
     MetricType,
     OutlierMethod,
     PreprocessingConfig,
     SearchStrategy,
     TaskType,
-    LLMConfig,
 )
 
 # Re-export PreprocessingConfig for backward compatibility
@@ -26,7 +26,7 @@ __all__ = ["PreprocessingConfig"]
 
 class ModelConfig(BaseModel):
     """Model configuration for individual models."""
-    
+
     class_weight: Optional[str] = None
     early_stopping: bool = False
     validation_fraction: Optional[float] = None
