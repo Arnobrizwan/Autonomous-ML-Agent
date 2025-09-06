@@ -35,7 +35,6 @@ artifact_exporter = ArtifactExporter()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan."""
-    global loaded_pipeline, loaded_metadata
     logger.info("Starting Autonomous ML Agent API service")
     yield
     logger.info("Shutting down Autonomous ML Agent API service")

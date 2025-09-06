@@ -202,9 +202,12 @@ class ArtifactExporter:
         Returns:
             Loaded pipeline
         """
+        # Try pipeline.joblib first, then model.joblib as fallback
         pipeline_path = self.artifacts_dir / run_id / "pipeline.joblib"
         if not pipeline_path.exists():
-            raise FileNotFoundError(f"Pipeline not found at {pipeline_path}")
+            pipeline_path = self.artifacts_dir / run_id / "model.joblib"
+            if not pipeline_path.exists():
+                raise FileNotFoundError(f"Pipeline not found at {self.artifacts_dir / run_id / 'pipeline.joblib'} or {self.artifacts_dir / run_id / 'model.joblib'}")
 
         pipeline = joblib.load(pipeline_path)
         logger.info(f"Pipeline loaded from {pipeline_path}")

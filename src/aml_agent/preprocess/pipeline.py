@@ -23,6 +23,12 @@ from .transformers import (
 logger = get_logger()
 
 
+# Module-level function for pickling compatibility
+def identity_func(x):
+    """Identity function for passthrough transformer."""
+    return x
+
+
 class PreprocessingPipeline:
     """Complete preprocessing pipeline with intelligent type detection and advanced feature engineering."""
 
@@ -205,14 +211,20 @@ class PreprocessingPipeline:
         # Imputation for categorical columns (only if they don't overlap with numeric)
         if categorical_columns and self.config.handle_missing:
             # Only process categorical columns that are not already processed as numeric
-            remaining_categorical = [col for col in categorical_columns if col not in numeric_columns]
+            remaining_categorical = [
+                col for col in categorical_columns if col not in numeric_columns
+            ]
             if remaining_categorical:
                 categorical_imputer = ImputationTransformer(
                     numeric_strategy=self.config.impute_numeric,
                     categorical_strategy=self.config.impute_categorical,
                 )
                 transformers.append(
-                    ("categorical_imputation", categorical_imputer, remaining_categorical)
+                    (
+                        "categorical_imputation",
+                        categorical_imputer,
+                        remaining_categorical,
+                    )
                 )
 
         # DateTime expansion
@@ -253,9 +265,6 @@ class PreprocessingPipeline:
         else:
             # If no transformers, create a simple passthrough
             from sklearn.preprocessing import FunctionTransformer
-
-            def identity_func(x):
-                return x
 
             self.pipeline = FunctionTransformer(identity_func)
 

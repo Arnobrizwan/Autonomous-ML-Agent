@@ -305,6 +305,20 @@ def validate_model_params(
                 )
                 validated_params["solver"] = "liblinear"
 
+    # Convert string hidden_layer_sizes to tuple for MLP
+    if model_type == ModelType.MLP and "hidden_layer_sizes" in validated_params:
+        hidden_sizes_str = validated_params["hidden_layer_sizes"]
+        if isinstance(hidden_sizes_str, str):
+            # Convert string like "50,50" to tuple (50, 50)
+            try:
+                hidden_sizes = tuple(
+                    int(x.strip()) for x in hidden_sizes_str.split(",")
+                )
+                validated_params["hidden_layer_sizes"] = hidden_sizes
+            except ValueError:
+                logger.warning(f"Invalid hidden_layer_sizes format: {hidden_sizes_str}")
+                validated_params["hidden_layer_sizes"] = (100,)
+
     return validated_params
 
 

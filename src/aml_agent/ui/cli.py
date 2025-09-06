@@ -15,7 +15,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from ..config import create_default_config, load_config
 from ..export.model_card import ModelCardGenerator
 from ..logging import get_logger, setup_logging
-from ..service.app import app
+from ..service.app import app, create_app
 
 # Import moved to avoid circular import
 from ..ui.leaderboard import display_leaderboard_from_file

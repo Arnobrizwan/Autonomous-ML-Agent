@@ -107,9 +107,9 @@ class LLMPlanner:
     def _select_models_heuristic(self, context: PlanningContext) -> List[ModelType]:
         """Select models using heuristic rules - following original prompt exactly."""
         # As per original prompt: ALL these models must be tested
-        # (Logistic/Linear Regression, RandomForest, GradientBoosting, kNN, 
+        # (Logistic/Linear Regression, RandomForest, GradientBoosting, kNN,
         # MLPClassifier/Regressor, XGBoost, LightGBM, CatBoost)
-        
+
         all_models = [
             ModelType.LOGISTIC_REGRESSION,
             ModelType.LINEAR_REGRESSION,
@@ -121,10 +121,10 @@ class LLMPlanner:
             ModelType.LIGHTGBM,
             ModelType.CATBOOST,
         ]
-        
+
         # Filter to available models only
         available_models = [m for m in all_models if m in context.available_models]
-        
+
         return available_models
 
     def _allocate_budget_heuristic(
@@ -134,8 +134,10 @@ class LLMPlanner:
         # Ensure minimum trials per model as per original prompt
         n_models = len(models)
         min_trials_per_model = max(1, 50 // n_models)  # At least 1 trial per model
-        total_trials = min(100, context.time_budget_seconds // 5)  # More generous estimate
-        
+        total_trials = min(
+            100, context.time_budget_seconds // 5
+        )  # More generous estimate
+
         # Allocate more trials to promising models
         budgets = {}
         base_trials = max(min_trials_per_model, total_trials // n_models)

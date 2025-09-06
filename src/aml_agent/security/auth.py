@@ -4,6 +4,7 @@ Authentication and security utilities for the ML agent.
 
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import time

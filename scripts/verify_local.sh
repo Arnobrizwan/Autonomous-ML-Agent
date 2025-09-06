@@ -90,14 +90,14 @@ print(df.head(5).to_string(index=False))
 PY
 
 # --- boot API, probe, predict_one, shutdown ---
-python -m aml_agent.ui.cli serve "$RUN_ID" --host 127.0.0.1 --port 8000 >/tmp/aml_api.log 2>&1 &
+python -m aml_agent.ui.cli serve "$RUN_ID" --host 127.0.0.1 --port 8002 >/tmp/aml_api.log 2>&1 &
 API_PID=$!
 echo "API PID: $API_PID"
 
 # wait for /healthz up to 30s
 ok=0
 for i in {1..30}; do
-    if curl -sSf http://127.0.0.1:8000/healthz >/dev/null; then
+    if curl -sSf http://127.0.0.1:8002/healthz >/dev/null; then
         ok=1
         break
     fi
@@ -119,10 +119,15 @@ payload = {
 print(json.dumps(payload))
 PY
 
+# load model first
+curl -sSf -X POST -H "Content-Type: application/x-www-form-urlencoded" \
+    --data "run_id=$RUN_ID" \
+    http://127.0.0.1:8002/load_model
+
 # predict_one
 curl -sSf -H "Content-Type: application/json" \
     --data @/tmp/payload.json \
-    http://127.0.0.1:8000/predict_one | tee /tmp/aml_predict_one.json >/dev/null
+    http://127.0.0.1:8002/predict | tee /tmp/aml_predict_one.json >/dev/null
 
 # basic sanity: response contains "prediction"
 grep -q "prediction" /tmp/aml_predict_one.json || { echo "No 'prediction' key in response"; kill $API_PID || true; exit 1; }

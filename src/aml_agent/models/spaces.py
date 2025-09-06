@@ -117,14 +117,14 @@ class SearchSpaceBuilder:
         return {
             "hidden_layer_sizes": CategoricalDistribution(
                 [
-                    (50,),
-                    (100,),
-                    (50, 50),
-                    (100, 50),
-                    (100, 100),
-                    (50, 50, 50),
-                    (100, 50, 25),
-                    (200, 100),
+                    "50",
+                    "100",
+                    "50,50",
+                    "100,50",
+                    "100,100",
+                    "50,50,50",
+                    "100,50,25",
+                    "200,100",
                 ]
             ),
             "activation": CategoricalDistribution(["relu", "tanh", "logistic"]),
@@ -174,7 +174,9 @@ class SearchSpaceBuilder:
             "depth": IntDistribution(3, 15),
             "learning_rate": FloatDistribution(0.01, 0.3, log=True),
             "l2_leaf_reg": FloatDistribution(1, 10, log=True),
-            "bootstrap_type": CategoricalDistribution(["Bernoulli", "MVS"]),  # Removed Bayesian
+            "bootstrap_type": CategoricalDistribution(
+                ["Bernoulli", "MVS"]
+            ),  # Removed Bayesian
             "subsample": FloatDistribution(0.5, 1.0),
             "colsample_bylevel": FloatDistribution(0.5, 1.0),
             "min_child_samples": IntDistribution(5, 100),

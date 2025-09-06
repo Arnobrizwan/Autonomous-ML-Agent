@@ -296,20 +296,33 @@ class ModelTrainer:
 
             # Evaluate with CV
             start_time = time.time()
-            eval_results = self._evaluate_with_cv(model, X, y)
-            fit_time = time.time() - start_time
+            try:
+                eval_results = self._evaluate_with_cv(model, X, y)
+                fit_time = time.time() - start_time
 
-            # Calculate predict time (rough estimate)
-            predict_start = time.time()
-            model.predict(X.head(100))  # Sample prediction
-            predict_time = (time.time() - predict_start) * (len(X) / 100)
+                # Calculate predict time (rough estimate)
+                predict_start = time.time()
+                model.predict(X.head(100))  # Sample prediction
+                predict_time = (time.time() - predict_start) * (len(X) / 100)
 
-            # Store trial results
-            trial.set_user_attr("fit_time", fit_time)
-            trial.set_user_attr("predict_time", predict_time)
-            trial.set_user_attr("cv_scores", eval_results["cv_scores"])
+                # Store trial results
+                trial.set_user_attr("fit_time", fit_time)
+                trial.set_user_attr("predict_time", predict_time)
+                trial.set_user_attr("cv_scores", eval_results["cv_scores"])
 
-            return eval_results["score"]
+                return eval_results["score"]
+            except Exception as e:
+                # Handle model-specific errors gracefully
+                error_msg = str(e)
+                if "constant" in error_msg.lower() or "ignored" in error_msg.lower():
+                    # For constant features error (common with small datasets), return a low score
+                    logger.warning(
+                        f"Model {model_type} failed due to constant features: {error_msg}"
+                    )
+                    return 0.0
+                else:
+                    # Re-raise other errors
+                    raise e
 
         # Run optimization
         try:

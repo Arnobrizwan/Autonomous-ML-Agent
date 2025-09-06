@@ -98,8 +98,8 @@ class TestSmoke:
         )
 
         assert model is not None
-        assert hasattr(model, 'predict')
-        assert hasattr(model, 'fit')
+        assert hasattr(model, "predict")
+        assert hasattr(model, "fit")
 
     def test_hyperparameter_optimization(self):
         """Test hyperparameter optimization."""
@@ -295,22 +295,24 @@ class TestSmoke:
 
         # Generate model card
         generator = ModelCardGenerator(task_type=TaskType.CLASSIFICATION)
-        
+
         # Create sample data for testing
-        data = create_sample_data(n_samples=100, n_features=5, task_type=TaskType.CLASSIFICATION)
-        X = data.drop('target', axis=1)
-        y = data['target']
-        
+        data = create_sample_data(
+            n_samples=100, n_features=5, task_type=TaskType.CLASSIFICATION
+        )
+        X = data.drop("target", axis=1)
+        y = data["target"]
+
         # Create a simple model for testing
         from src.aml_agent.models import get_model_factory
-        model = get_model_factory(ModelType.LOGISTIC_REGRESSION, TaskType.CLASSIFICATION)
+
+        model = get_model_factory(
+            ModelType.LOGISTIC_REGRESSION, TaskType.CLASSIFICATION
+        )
         model.fit(X, y)
-        
+
         model_card = generator.generate_model_card(
-            model=model,
-            X=X,
-            y=y,
-            metadata={"test": True}
+            model=model, X=X, y=y, metadata={"test": True}
         )
 
         assert model_card is not None
@@ -384,14 +386,14 @@ class TestSmoke:
             "best_params": {"C": 1.0},
             "timestamp": datetime.now().isoformat(),
         }
-        
+
         # Add to store manually
         store.store["runs"].append(run_data)
         store._save_store()
 
         # Test basic functionality
         assert len(store.store["runs"]) > 0
-        
+
         # Test statistics
         stats = store.get_statistics()
         assert "total_runs" in stats
@@ -431,6 +433,7 @@ class TestSmoke:
 
         # Create app
         from src.aml_agent.service.app import create_app
+
         app = create_app(test_artifacts)
         assert app is not None
         assert hasattr(app, "routes")
