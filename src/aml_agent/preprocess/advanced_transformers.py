@@ -396,7 +396,7 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
         # Fit on numeric columns only
         if hasattr(X, "iloc"):
             # Use column names for DataFrame
-            X_numeric = X[numeric_columns]
+            X_numeric: Any = X[numeric_columns]
         else:
             # For numpy arrays, use integer indices
             numeric_indices = list(range(len(numeric_columns)))
@@ -465,7 +465,7 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
         # Generate polynomial features
         if hasattr(X, "iloc"):
             # Use column names for DataFrame
-            X_numeric = X[numeric_columns]
+            X_numeric: Any = X[numeric_columns]
         else:
             # For numpy arrays, use integer indices
             numeric_indices = list(range(len(numeric_columns)))
@@ -491,14 +491,26 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
 
             # Create DataFrame with polynomial features
             if hasattr(X, "index"):
+                # Convert to numpy array if needed
+                poly_array = (
+                    poly_features.toarray()
+                    if hasattr(poly_features, "toarray")
+                    else poly_features
+                )
                 poly_df = pd.DataFrame(
-                    poly_features,
+                    np.asarray(poly_array),
                     columns=self.poly_features.get_feature_names_out(numeric_columns),
                     index=X.index,
                 )
             else:
+                # Convert to numpy array if needed
+                poly_array = (
+                    poly_features.toarray()
+                    if hasattr(poly_features, "toarray")
+                    else poly_features
+                )
                 poly_df = pd.DataFrame(
-                    poly_features,
+                    np.asarray(poly_array),
                     columns=self.poly_features.get_feature_names_out(numeric_columns),
                 )
         else:
@@ -572,7 +584,7 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
         # Fit detector
         if hasattr(X, "iloc"):
             # Use column names for DataFrame
-            X_numeric = X[numeric_columns]
+            X_numeric: Any = X[numeric_columns]
         else:
             # For numpy arrays, use integer indices
             numeric_indices = list(range(len(numeric_columns)))
@@ -608,7 +620,7 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
 
         if hasattr(X, "iloc"):
             # Use column names for DataFrame
-            X_numeric = X[numeric_columns]
+            X_numeric: Any = X[numeric_columns]
         else:
             # For numpy arrays, use integer indices
             numeric_indices = list(range(len(numeric_columns)))
@@ -1076,6 +1088,7 @@ class TextFeatureExtractor(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X, y=None) -> pd.DataFrame:
+    def fit_transform(self, X, y=None, **fit_params) -> np.ndarray:
         """Fit and transform in one step."""
-        return self.fit(X, y).transform(X)
+        result = self.fit(X, y).transform(X)
+        return result.values if hasattr(result, "values") else result

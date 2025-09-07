@@ -100,7 +100,7 @@ class EnsembleBuilder:
                 voting="soft" if self._supports_proba(estimators) else "hard",
             )
         else:
-            voting_ensemble: Any = VotingRegressor(estimators=estimators)
+            voting_ensemble = VotingRegressor(estimators=estimators)
 
         return voting_ensemble
 
@@ -130,8 +130,8 @@ class EnsembleBuilder:
                 cv=5,
             )
         else:
-            stacking_meta_learner: Any = LinearRegression()
-            stacking_ensemble: Any = StackingRegressor(
+            stacking_meta_learner = LinearRegression()
+            stacking_ensemble = StackingRegressor(
                 estimators=estimators,
                 final_estimator=stacking_meta_learner,
                 cv=5,
@@ -189,9 +189,7 @@ class EnsembleBuilder:
 class WeightedEnsemble(BaseEstimator):
     """Weighted ensemble of models."""
 
-    def __init__(
-        self, models: List[BaseEstimator], weights: np.ndarray, task_type: TaskType
-    ):
+    def __init__(self, models: List[Any], weights: np.ndarray, task_type: TaskType):
         self.models = models
         self.weights = weights
         self.task_type = task_type
@@ -301,8 +299,8 @@ class AdvancedEnsemble:
         return WeightedEnsemble(models, weights, self.task_type)
 
     def _create_diversity_weighted_ensemble(
-        self, models: List[BaseEstimator], X: pd.DataFrame, y: pd.Series
-    ) -> BaseEstimator:
+        self, models: List[Any], X: pd.DataFrame, y: pd.Series
+    ) -> Any:
         """Create ensemble weighted by model diversity."""
         # Calculate diversity scores
         predictions = []
@@ -314,13 +312,13 @@ class AdvancedEnsemble:
         # Calculate pairwise diversity
         diversity_scores = []
         for i, pred1 in enumerate(predictions):
-            diversity = 0
+            diversity: float = 0.0
             for j, pred2 in enumerate(predictions):
                 if i != j:
                     if self.task_type == TaskType.CLASSIFICATION:
-                        diversity += float(1 - accuracy_score(pred1, pred2))
+                        diversity += float(1.0 - accuracy_score(pred1, pred2))
                     else:
-                        diversity += float(1 - r2_score(pred1, pred2))
+                        diversity += float(1.0 - r2_score(pred1, pred2))
             diversity_scores.append(diversity)
 
         # Normalize weights

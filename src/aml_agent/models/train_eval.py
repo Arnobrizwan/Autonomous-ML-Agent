@@ -146,7 +146,7 @@ class ModelTrainer:
             return self._evaluate_single_split(model, X, y)
 
     def _evaluate_with_cv(
-        self, model: BaseEstimator, X: pd.DataFrame, y: pd.Series
+        self, model: Any, X: pd.DataFrame, y: pd.Series
     ) -> Dict[str, Any]:
         """Evaluate model with cross-validation."""
         # Choose CV strategy
@@ -155,7 +155,7 @@ class ModelTrainer:
                 n_splits=self.cv_folds, shuffle=True, random_state=self.random_seed
             )
         else:
-            cv_strategy: Any = KFold(
+            cv_strategy = KFold(
                 n_splits=self.cv_folds, shuffle=True, random_state=self.random_seed
             )
 
@@ -190,7 +190,7 @@ class ModelTrainer:
         }
 
     def _evaluate_single_split(
-        self, model: BaseEstimator, X: pd.DataFrame, y: pd.Series
+        self, model: Any, X: pd.DataFrame, y: pd.Series
     ) -> Dict[str, Any]:
         """Evaluate model on single train/test split."""
         # Split data

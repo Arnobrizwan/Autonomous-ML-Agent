@@ -188,7 +188,7 @@ def get_model_factory(
         Model instance
     """
     registry = ModelRegistry()
-    model_class = registry.get_model_class(model_type, task_type)
+    model_class: Any = registry.get_model_class(model_type, task_type)
 
     # Set default parameters
     default_params = _get_default_params(model_type, task_type)
@@ -196,7 +196,7 @@ def get_model_factory(
         default_params.update(params)
 
     # Create model instance
-    model = model_class(**default_params)
+    model: Any = model_class(**default_params)
 
     logger.info(
         f"Created {model_type} model for {task_type} with params: {default_params}"

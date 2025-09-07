@@ -52,7 +52,7 @@ class AgentLoop:
 
         # Results storage
         self.trial_results: List[Any] = []
-        self.ensemble_model = None
+        self.ensemble_model: Optional[Any] = None
         self.final_pipeline = None
 
     async def run(
@@ -314,7 +314,7 @@ class AgentLoop:
                 logger.warning("Trainer not initialized, skipping ensemble creation")
                 return
 
-            self.ensemble_model: Any = ensemble_builder.create_ensemble(
+            self.ensemble_model = ensemble_builder.create_ensemble(
                 trial_results=self.trial_results,
                 top_k=plan.ensemble_strategy.top_k,
                 method=plan.ensemble_strategy.method,
@@ -366,7 +366,7 @@ class AgentLoop:
             json.dump(original_feature_names, f, indent=2)
 
         # Save best model or ensemble
-        best_model = None
+        best_model: Optional[Any] = None
         if self.ensemble_model:
             import joblib
 
@@ -382,7 +382,7 @@ class AgentLoop:
             validated_params = validate_model_params(
                 best_result.model_type, best_result.params
             )
-            best_model: Any = get_model_factory(
+            best_model = get_model_factory(
                 best_result.model_type, task_type, validated_params
             )
             best_model.fit(X_processed, y_processed)
