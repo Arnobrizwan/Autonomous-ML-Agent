@@ -57,6 +57,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-ra -q --strict-markers --durations=10 --maxfail=3"
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "unit: Fast unit tests (isolated, <1s each)",
     "integration: Integration tests (with dependencies, 1-10s each)",

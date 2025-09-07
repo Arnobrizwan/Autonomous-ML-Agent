@@ -13,7 +13,6 @@ from ..config import Config
 from ..export.model_card import ModelCardGenerator
 from ..logging import get_logger
 from ..models import EnsembleBuilder, ModelTrainer
-from ..preprocess import PreprocessingPipeline
 from ..types import (
     LeaderboardEntry,
     RunMetadata,
@@ -26,7 +25,6 @@ from ..utils import (
     generate_run_id,
     profile_dataset,
     save_metadata,
-    select_metric,
 )
 
 logger = get_logger()
@@ -152,18 +150,16 @@ class AgentLoop:
         self.metadata.dataset_profile = dataset_profile
 
         # Create preprocessing pipeline
-        from ..preprocess.config import PreprocessingConfig
         from ..preprocess.pipeline import PreprocessingPipeline
+        from ..types import PreprocessingConfig
 
         # Convert PreprocessingSettings to PreprocessingConfig
         if hasattr(self.config.preprocessing, "model_dump"):
             # It's a Pydantic model, convert to dict then to PreprocessingConfig
             preprocessing_dict = self.config.preprocessing.model_dump()
-            preprocessing_config = PreprocessingConfig.from_dict(preprocessing_dict)
+            preprocessing_config = PreprocessingConfig(**preprocessing_dict)
         elif isinstance(self.config.preprocessing, dict):
-            preprocessing_config = PreprocessingConfig.from_dict(
-                self.config.preprocessing
-            )
+            preprocessing_config = PreprocessingConfig(**self.config.preprocessing)
         else:
             preprocessing_config = self.config.preprocessing
         self.preprocessor = PreprocessingPipeline(preprocessing_config)

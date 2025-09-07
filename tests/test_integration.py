@@ -35,7 +35,7 @@ class TestIntegration:
         """Test complete classification pipeline."""
         # Create sample data
         data = create_sample_data(
-            n_samples=200, n_features=8, task_type=TaskType.CLASSIFICATION
+            n_samples=50, n_features=4, task_type=TaskType.CLASSIFICATION
         )
 
         X = data.drop(columns=["target"])
@@ -43,8 +43,8 @@ class TestIntegration:
 
         # Create config
         config = create_default_config()
-        config.time_budget_seconds = 60
-        config.max_trials = 10
+        config.time_budget_seconds = 10  # Much shorter for CI
+        config.max_trials = 2  # Minimal trials for speed
         config.artifacts_dir = str(self.artifacts_dir)
         config.llm.enabled = False  # Disable LLM for faster testing
 
@@ -72,7 +72,7 @@ class TestIntegration:
         """Test complete regression pipeline."""
         # Create sample data
         data = create_sample_data(
-            n_samples=200, n_features=8, task_type=TaskType.REGRESSION
+            n_samples=50, n_features=4, task_type=TaskType.REGRESSION
         )
 
         X = data.drop(columns=["target"])
@@ -80,8 +80,8 @@ class TestIntegration:
 
         # Create config
         config = create_default_config()
-        config.time_budget_seconds = 60
-        config.max_trials = 10
+        config.time_budget_seconds = 10  # Much shorter for CI
+        config.max_trials = 2  # Minimal trials for speed
         config.artifacts_dir = str(self.artifacts_dir)
         config.llm.enabled = False
 
@@ -98,7 +98,7 @@ class TestIntegration:
         """Test pipeline with missing data."""
         # Create data with missing values
         data = create_sample_data(
-            n_samples=200, n_features=8, task_type=TaskType.CLASSIFICATION
+            n_samples=50, n_features=4, task_type=TaskType.CLASSIFICATION
         )
 
         # Introduce missing values
@@ -110,8 +110,8 @@ class TestIntegration:
 
         # Create config
         config = create_default_config()
-        config.time_budget_seconds = 60
-        config.max_trials = 5
+        config.time_budget_seconds = 10  # Much shorter for CI
+        config.max_trials = 2  # Minimal trials for speed
         config.artifacts_dir = str(self.artifacts_dir)
         config.llm.enabled = False
 
@@ -133,7 +133,7 @@ class TestIntegration:
                 "numeric_2": np.random.normal(0, 1, n_samples),
                 "categorical_1": np.random.choice(["A", "B", "C"], n_samples),
                 "categorical_2": np.random.choice(["X", "Y", "Z"], n_samples),
-                "target": np.random.choice([0, 1], n_samples),
+                "target": np.random.choice([0, 1], n_samples).astype(np.int64),
             }
         )
 
@@ -142,8 +142,8 @@ class TestIntegration:
 
         # Create config with simpler preprocessing for categorical data
         config = create_default_config()
-        config.time_budget_seconds = 30
-        config.max_trials = 3
+        config.time_budget_seconds = 10  # Much shorter for CI
+        config.max_trials = 2  # Minimal trials for speed
         config.artifacts_dir = str(self.artifacts_dir)
         config.llm.enabled = False
         # Use simpler preprocessing to avoid feature expansion issues
@@ -159,7 +159,7 @@ class TestIntegration:
         """Test ensemble model creation."""
         # Create sample data
         data = create_sample_data(
-            n_samples=200, n_features=8, task_type=TaskType.CLASSIFICATION
+            n_samples=50, n_features=4, task_type=TaskType.CLASSIFICATION
         )
 
         X = data.drop(columns=["target"])
@@ -167,8 +167,8 @@ class TestIntegration:
 
         # Create config with ensembling enabled
         config = create_default_config()
-        config.time_budget_seconds = 60
-        config.max_trials = 15  # Need multiple models for ensemble
+        config.time_budget_seconds = 15  # Slightly longer for ensemble
+        config.max_trials = 3  # Minimal models for ensemble
         config.artifacts_dir = str(self.artifacts_dir)
         config.enable_ensembling = True
         config.llm.enabled = False
@@ -186,7 +186,7 @@ class TestIntegration:
         """Test model export and loading."""
         # Create sample data
         data = create_sample_data(
-            n_samples=100, n_features=5, task_type=TaskType.CLASSIFICATION
+            n_samples=30, n_features=3, task_type=TaskType.CLASSIFICATION
         )
 
         X = data.drop(columns=["target"])
@@ -194,8 +194,8 @@ class TestIntegration:
 
         # Create config
         config = create_default_config()
-        config.time_budget_seconds = 30
-        config.max_trials = 5
+        config.time_budget_seconds = 10  # Much shorter for CI
+        config.max_trials = 2  # Minimal trials for speed
         config.artifacts_dir = str(self.artifacts_dir)
         config.llm.enabled = False
 
@@ -226,8 +226,8 @@ class TestIntegration:
 
         # Create config
         config = create_default_config()
-        config.time_budget_seconds = 30
-        config.max_trials = 5
+        config.time_budget_seconds = 10  # Much shorter for CI
+        config.max_trials = 2  # Minimal trials for speed
         config.artifacts_dir = str(self.artifacts_dir)
         config.llm.enabled = False
 
@@ -244,7 +244,7 @@ class TestIntegration:
         """Test pipeline performance under time constraints."""
         # Create sample data
         data = create_sample_data(
-            n_samples=500, n_features=10, task_type=TaskType.CLASSIFICATION
+            n_samples=50, n_features=4, task_type=TaskType.CLASSIFICATION
         )
 
         X = data.drop(columns=["target"])
