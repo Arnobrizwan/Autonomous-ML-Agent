@@ -87,7 +87,9 @@ async def run(
 
         # Ensure data is a DataFrame
         if hasattr(loaded_data, "shape"):
-            console.print(f"Data loaded: {loaded_data.shape[0]} rows, {loaded_data.shape[1]} columns")
+            console.print(
+                f"Data loaded: {loaded_data.shape[0]} rows, {loaded_data.shape[1]} columns"
+            )
         elif hasattr(loaded_data, "__len__"):
             console.print(f"Data loaded: {len(loaded_data)} rows")
         else:

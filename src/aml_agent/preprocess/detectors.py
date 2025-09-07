@@ -97,10 +97,8 @@ class TypeDetector:
 
     def _is_categorical(self, series: pd.Series) -> bool:
         """Check if series is categorical."""
-        # Check if already categorical
-        if hasattr(
-            pd.api.types, "is_categorical_dtype"
-        ) and pd.api.types.is_categorical_dtype(series):
+        # Check if already categorical using recommended approach
+        if isinstance(series.dtype, pd.CategoricalDtype):
             return True
 
         # Check for object type with limited unique values
