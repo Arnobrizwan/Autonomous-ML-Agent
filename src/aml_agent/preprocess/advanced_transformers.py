@@ -630,6 +630,103 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
         self.selected_features_: List[str] = []
         self.is_fitted = False
 
+    def _get_numeric_columns(self, X: pd.DataFrame) -> List[str]:
+        """Get numeric columns from input data."""
+        if hasattr(X, "select_dtypes"):
+            return X.select_dtypes(include=[np.number]).columns.tolist()
+        else:
+            # If X is a numpy array, create string column names
+            return [f"feature_{i}" for i in range(X.shape[1])]
+
+    def _encode_target(self, y: pd.Series) -> np.ndarray:
+        """Encode target variable if categorical."""
+        from sklearn.preprocessing import LabelEncoder
+
+        if y.dtype == "object":
+            le = LabelEncoder()
+            return le.fit_transform(y)
+        return y
+
+    def _get_data_subset(self, X: pd.DataFrame, numeric_columns: List[str]) -> np.ndarray:
+        """Get numeric data subset from input."""
+        if hasattr(X, "iloc"):
+            return X[numeric_columns].values
+        else:
+            numeric_indices = list(range(len(numeric_columns)))
+            return X[:, numeric_indices]
+
+    def _select_features_by_scores(self, scores: np.ndarray, numeric_columns: List[str]) -> List[str]:
+        """Select top k features based on scores."""
+        top_indices = np.argsort(scores)[-self.k:]
+        return [numeric_columns[i] for i in top_indices]
+
+    def _apply_mutual_info_selection(self, X: pd.DataFrame, y: pd.Series, numeric_columns: List[str]) -> List[str]:
+        """Apply mutual information feature selection."""
+        from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
+
+        y_encoded = self._encode_target(y)
+        data_subset = self._get_data_subset(X, numeric_columns)
+
+        # Determine if classification or regression
+        if len(np.unique(y_encoded)) < 20:  # Classification
+            scores = mutual_info_classif(data_subset, y_encoded)
+        else:  # Regression
+            scores = mutual_info_regression(data_subset, y_encoded)
+
+        return self._select_features_by_scores(scores, numeric_columns)
+
+    def _apply_f_score_selection(self, X: pd.DataFrame, y: pd.Series, numeric_columns: List[str]) -> List[str]:
+        """Apply F-score feature selection."""
+        from sklearn.feature_selection import f_classif, f_regression
+
+        y_encoded = self._encode_target(y)
+        data_subset = self._get_data_subset(X, numeric_columns)
+
+        # Determine if classification or regression
+        if len(np.unique(y_encoded)) < 20:  # Classification
+            scores, _ = f_classif(data_subset, y_encoded)
+        else:  # Regression
+            scores, _ = f_regression(data_subset, y_encoded)
+
+        return self._select_features_by_scores(scores, numeric_columns)
+
+    def _apply_variance_selection(self, X: pd.DataFrame, numeric_columns: List[str]) -> List[str]:
+        """Apply variance-based feature selection."""
+        from sklearn.feature_selection import VarianceThreshold
+
+        selector = VarianceThreshold(threshold=self.variance_threshold)
+        data_subset = self._get_data_subset(X, numeric_columns)
+        selector.fit(data_subset)
+
+        return [
+            col
+            for col, selected in zip(numeric_columns, selector.get_support())
+            if selected
+        ]
+
+    def _apply_correlation_selection(self, X: pd.DataFrame, numeric_columns: List[str]) -> List[str]:
+        """Apply correlation-based feature selection."""
+        if hasattr(X, "iloc"):
+            corr_matrix = X[numeric_columns].corr().abs()
+        else:
+            # For numpy arrays, convert to DataFrame first
+            X_df = pd.DataFrame(
+                X[:, : len(numeric_columns)], columns=numeric_columns
+            )
+            corr_matrix = X_df.corr().abs()
+
+        upper_tri = corr_matrix.where(
+            np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
+        )
+
+        to_drop = [
+            column
+            for column in upper_tri.columns
+            if any(upper_tri[column] > self.correlation_threshold)
+        ]
+
+        return [col for col in numeric_columns if col not in to_drop]
+
     def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> "FeatureSelector":
         """Fit the feature selector."""
         if y is None and self.method in ["mutual_info", "f_score"]:
@@ -638,115 +735,20 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
             )
             self.method = "variance"
 
-        if hasattr(X, "select_dtypes"):
-            numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
-        else:
-            # If X is a numpy array, create string column names
-            numeric_columns = [f"feature_{i}" for i in range(X.shape[1])]
-
+        numeric_columns = self._get_numeric_columns(X)
         if not numeric_columns:
             logger.warning("No numeric columns found for feature selection")
             return self
 
+        # Apply the selected method
         if self.method == "mutual_info":
-            from sklearn.feature_selection import (
-                mutual_info_classif,
-                mutual_info_regression,
-            )
-            from sklearn.preprocessing import LabelEncoder
-
-            # Encode target if categorical
-            if y.dtype == "object":
-                le = LabelEncoder()
-                y_encoded = le.fit_transform(y)
-            else:
-                y_encoded = y
-
-            # Determine if classification or regression
-            if len(np.unique(y_encoded)) < 20:  # Classification
-                if hasattr(X, "iloc"):
-                    scores = mutual_info_classif(X[numeric_columns], y_encoded)
-                else:
-                    numeric_indices = list(range(len(numeric_columns)))
-                    scores = mutual_info_classif(X[:, numeric_indices], y_encoded)
-            else:  # Regression
-                if hasattr(X, "iloc"):
-                    scores = mutual_info_regression(X[numeric_columns], y_encoded)
-                else:
-                    numeric_indices = list(range(len(numeric_columns)))
-                    scores = mutual_info_regression(X[:, numeric_indices], y_encoded)
-
-            # Select top k features
-            top_indices = np.argsort(scores)[-self.k :]
-            self.selected_features_ = [numeric_columns[i] for i in top_indices]
-
+            self.selected_features_ = self._apply_mutual_info_selection(X, y, numeric_columns)
         elif self.method == "f_score":
-            from sklearn.feature_selection import f_classif, f_regression
-            from sklearn.preprocessing import LabelEncoder
-
-            # Encode target if categorical
-            if y.dtype == "object":
-                le = LabelEncoder()
-                y_encoded = le.fit_transform(y)
-            else:
-                y_encoded = y
-
-            # Determine if classification or regression
-            if len(np.unique(y_encoded)) < 20:  # Classification
-                if hasattr(X, "iloc"):
-                    scores, _ = f_classif(X[numeric_columns], y_encoded)
-                else:
-                    numeric_indices = list(range(len(numeric_columns)))
-                    scores, _ = f_classif(X[:, numeric_indices], y_encoded)
-            else:  # Regression
-                if hasattr(X, "iloc"):
-                    scores, _ = f_regression(X[numeric_columns], y_encoded)
-                else:
-                    numeric_indices = list(range(len(numeric_columns)))
-                    scores, _ = f_regression(X[:, numeric_indices], y_encoded)
-
-            # Select top k features
-            top_indices = np.argsort(scores)[-self.k :]
-            self.selected_features_ = [numeric_columns[i] for i in top_indices]
-
+            self.selected_features_ = self._apply_f_score_selection(X, y, numeric_columns)
         elif self.method == "variance":
-            from sklearn.feature_selection import VarianceThreshold
-
-            selector = VarianceThreshold(threshold=self.variance_threshold)
-            if hasattr(X, "iloc"):
-                selector.fit(X[numeric_columns])
-            else:
-                numeric_indices = list(range(len(numeric_columns)))
-                selector.fit(X[:, numeric_indices])
-            self.selected_features_ = [
-                col
-                for col, selected in zip(numeric_columns, selector.get_support())
-                if selected
-            ]
-
+            self.selected_features_ = self._apply_variance_selection(X, numeric_columns)
         elif self.method == "correlation":
-            # Remove highly correlated features
-            if hasattr(X, "iloc"):
-                corr_matrix = X[numeric_columns].corr().abs()
-            else:
-                # For numpy arrays, convert to DataFrame first
-                X_df = pd.DataFrame(
-                    X[:, : len(numeric_columns)], columns=numeric_columns
-                )
-                corr_matrix = X_df.corr().abs()
-            upper_tri = corr_matrix.where(
-                np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
-            )
-
-            to_drop = [
-                column
-                for column in upper_tri.columns
-                if any(upper_tri[column] > self.correlation_threshold)
-            ]
-
-            self.selected_features_ = [
-                col for col in numeric_columns if col not in to_drop
-            ]
+            self.selected_features_ = self._apply_correlation_selection(X, numeric_columns)
 
         # Limit to k features if more than k selected
         if len(self.selected_features_) > self.k:
@@ -852,6 +854,31 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
 
         return self
 
+    def _ensure_unique_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Ensure all column names are unique."""
+        unique_cols = []
+        for col in df.columns:
+            if col in unique_cols:
+                counter = 1
+                while f"{col}_{counter}" in unique_cols:
+                    counter += 1
+                unique_cols.append(f"{col}_{counter}")
+            else:
+                unique_cols.append(col)
+        df.columns = unique_cols
+        return df
+
+    def _apply_transformer_if_ready(self, transformer, data: pd.DataFrame) -> pd.DataFrame:
+        """Apply transformer if it's ready and fitted."""
+        if (
+            transformer is not None
+            and hasattr(transformer, "is_fitted")
+            and transformer.is_fitted
+        ):
+            data = transformer.transform(data)
+            data = self._ensure_unique_columns(data)
+        return data
+
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Transform data through advanced preprocessing pipeline."""
         if not self.is_fitted:
@@ -862,104 +889,24 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
         result = X.copy()
 
         # Apply text preprocessing
-        if (
-            self.text_preprocessor is not None
-            and self.use_text_preprocessing
-            and hasattr(self.text_preprocessor, "is_fitted")
-            and self.text_preprocessor.is_fitted
-        ):
-            result = self.text_preprocessor.transform(result)
-            # Ensure unique column names
-            unique_cols = []
-            for col in result.columns:
-                if col in unique_cols:
-                    counter = 1
-                    while f"{col}_{counter}" in unique_cols:
-                        counter += 1
-                    unique_cols.append(f"{col}_{counter}")
-                else:
-                    unique_cols.append(col)
-            result.columns = unique_cols
+        if self.use_text_preprocessing:
+            result = self._apply_transformer_if_ready(self.text_preprocessor, result)
 
         # Apply text embeddings
-        if (
-            self.text_embedder is not None
-            and self.use_text_embeddings
-            and hasattr(self.text_embedder, "is_fitted")
-            and self.text_embedder.is_fitted
-        ):
-            result = self.text_embedder.transform(result)
-            # Ensure unique column names
-            unique_cols = []
-            for col in result.columns:
-                if col in unique_cols:
-                    counter = 1
-                    while f"{col}_{counter}" in unique_cols:
-                        counter += 1
-                    unique_cols.append(f"{col}_{counter}")
-                else:
-                    unique_cols.append(col)
-            result.columns = unique_cols
+        if self.use_text_embeddings:
+            result = self._apply_transformer_if_ready(self.text_embedder, result)
 
         # Apply polynomial features
-        if (
-            self.poly_generator is not None
-            and self.use_polynomial_features
-            and hasattr(self.poly_generator, "is_fitted")
-            and self.poly_generator.is_fitted
-        ):
-            result = self.poly_generator.transform(result)
-            # Ensure unique column names
-            unique_cols = []
-            for col in result.columns:
-                if col in unique_cols:
-                    counter = 1
-                    while f"{col}_{counter}" in unique_cols:
-                        counter += 1
-                    unique_cols.append(f"{col}_{counter}")
-                else:
-                    unique_cols.append(col)
-            result.columns = unique_cols
+        if self.use_polynomial_features:
+            result = self._apply_transformer_if_ready(self.poly_generator, result)
 
         # Apply outlier detection
-        if (
-            self.outlier_detector is not None
-            and self.use_advanced_outlier_detection
-            and hasattr(self.outlier_detector, "is_fitted")
-            and self.outlier_detector.is_fitted
-        ):
-            result = self.outlier_detector.transform(result)
-            # Ensure unique column names
-            unique_cols = []
-            for col in result.columns:
-                if col in unique_cols:
-                    counter = 1
-                    while f"{col}_{counter}" in unique_cols:
-                        counter += 1
-                    unique_cols.append(f"{col}_{counter}")
-                else:
-                    unique_cols.append(col)
-            result.columns = unique_cols
+        if self.use_advanced_outlier_detection:
+            result = self._apply_transformer_if_ready(self.outlier_detector, result)
 
         # Apply feature selection
-        if (
-            self.feature_selector is not None
-            and self.use_feature_selection
-            and hasattr(self.feature_selector, "is_fitted")
-            and self.feature_selector.is_fitted
-        ):
-            result = self.feature_selector.transform(result)
-            # Ensure unique column names
-            unique_cols = []
-            for col in result.columns:
-                if col in unique_cols:
-                    counter = 1
-                    while f"{col}_{counter}" in unique_cols:
-                        counter += 1
-                    unique_cols.append(f"{col}_{counter}")
-                else:
-                    unique_cols.append(col)
-            result.columns = unique_cols
+        if self.use_feature_selection:
+            result = self._apply_transformer_if_ready(self.feature_selector, result)
 
         logger.info(f"Advanced preprocessing completed. Final shape: {result.shape}")
         return result
