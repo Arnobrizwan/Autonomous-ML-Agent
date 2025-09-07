@@ -28,7 +28,7 @@ class SecurityManager:
         self.api_keys: dict[str, dict[str, Any]] = (
             {}
         )  # In production, use a proper database
-        self.rate_limits: dict[str, dict[str, Any]] = {}  # Simple rate limiting
+        self.rate_limits: dict[str, list[float]] = {}  # Simple rate limiting
 
     def _generate_secret_key(self) -> str:
         """Generate a secure secret key."""
@@ -158,7 +158,7 @@ class SecurityManager:
         Returns:
             Validation result dictionary
         """
-        validation_result = {
+        validation_result: Dict[str, Any] = {
             "valid": True,
             "errors": [],
             "warnings": [],
@@ -325,6 +325,8 @@ class SecurityManager:
 
     def create_hmac_signature(self, data: str) -> str:
         """Create HMAC signature for data integrity."""
+        if self.secret_key is None:
+            raise ValueError("Secret key is not set")
         return hmac.new(
             self.secret_key.encode(), data.encode(), hashlib.sha256
         ).hexdigest()
