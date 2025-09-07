@@ -440,9 +440,7 @@ def render_upload_section():
 
         with col1:
             st.markdown("### 📊 Upload Your Data")
-            st.markdown(
-                "Upload your CSV, Excel, or other data files to get started."
-            )
+            st.markdown("Upload your CSV, Excel, or other data files to get started.")
 
         with col2:
             st.markdown("### 🧪 Try Sample Data")
@@ -526,9 +524,7 @@ def render_upload_section():
                     st.info(
                         f"📈 Generated {len(sample_df)} rows and {len(sample_df.columns)} columns"
                     )
-                    st.info(
-                        f"🎯 Theme: {dataset_theme.replace('_', ' ').title()}"
-                    )
+                    st.info(f"🎯 Theme: {dataset_theme.replace('_', ' ').title()}")
                     st.info(f"🎯 Task: {task_type.title()}")
 
 
@@ -617,9 +613,7 @@ def render_training_dashboard():
         "uploaded_data" not in st.session_state
         or st.session_state.uploaded_data is None
     ):
-        st.warning(
-            "⚠️ Please upload your data first in the Upload Data section."
-        )
+        st.warning("⚠️ Please upload your data first in the Upload Data section.")
         return
 
     # Configuration section
@@ -856,13 +850,9 @@ def render_results_section():
     fig = px.bar(
         df_leaderboard,
         x="AI Model Type",
-        y=[
-            float(acc.replace("%", "")) for acc in leaderboard_data["Accuracy"]
-        ],
+        y=[float(acc.replace("%", "")) for acc in leaderboard_data["Accuracy"]],
         title="AI Model Accuracy Comparison",
-        color=[
-            float(acc.replace("%", "")) for acc in leaderboard_data["Accuracy"]
-        ],
+        color=[float(acc.replace("%", "")) for acc in leaderboard_data["Accuracy"]],
         color_continuous_scale="Blues",
     )
     fig.update_layout(
@@ -992,9 +982,7 @@ def render_api_section():
 
     if st.session_state.uploaded_data is not None:
         # Get sample data for testing
-        sample_data = st.session_state.uploaded_data.head(1).to_dict(
-            "records"
-        )[0]
+        sample_data = st.session_state.uploaded_data.head(1).to_dict("records")[0]
 
         st.json(sample_data)
 
@@ -1029,9 +1017,7 @@ def render_enterprise_dashboard():
     col1, col2, col3, col4 = st.columns(4)
 
     # Get actual metrics from session state
-    models_created = len(
-        st.session_state.get("training_results", {}).get("models", [])
-    )
+    models_created = len(st.session_state.get("training_results", {}).get("models", []))
     success_rate = 94.2 if models_created > 0 else 0
     avg_accuracy = (
         st.session_state.get("training_results", {}).get("best_score", 0) * 100
@@ -1209,9 +1195,7 @@ def render_activity_table():
                 st.session_state.sidebar_nav = "🚀 Create Model"
                 st.rerun()
             else:
-                st.warning(
-                    "⚠️ Please upload data first before creating models."
-                )
+                st.warning("⚠️ Please upload data first before creating models.")
 
     with col3:
         if st.button(
@@ -1223,9 +1207,7 @@ def render_activity_table():
                 st.session_state.sidebar_nav = "📈 View Results"
                 st.rerun()
             else:
-                st.warning(
-                    "⚠️ No results available. Please train models first."
-                )
+                st.warning("⚠️ No results available. Please train models first.")
 
 
 def render_settings():
@@ -1246,9 +1228,7 @@ def render_settings():
         st.number_input(
             "Default Time Budget (min)", min_value=1, max_value=120, value=15
         )
-        st.number_input(
-            "Default Max Trials", min_value=10, max_value=500, value=50
-        )
+        st.number_input("Default Max Trials", min_value=10, max_value=500, value=50)
         st.selectbox("Default Search Strategy", ["bayes", "random"])
 
     # Model settings
