@@ -252,13 +252,50 @@ class TextEmbeddingTransformer(BaseEstimator, TransformerMixin):
 
         return self
 
+    def _generate_sentence_embeddings(self, text_data: pd.Series, col: str, result: pd.DataFrame) -> pd.DataFrame:
+        """Generate sentence transformer embeddings for a text column."""
+        try:
+            embeddings = self.sentence_model.encode(text_data.tolist())
+            # Limit to max_features
+            if embeddings.shape[1] > self.max_features:
+                embeddings = embeddings[:, : self.max_features]
+
+            # Create DataFrame with embeddings
+            embedding_cols = [f"{col}_embed_{i}" for i in range(embeddings.shape[1])]
+            embedding_df = pd.DataFrame(embeddings, columns=embedding_cols, index=result.index)
+            result = pd.concat([result, embedding_df], axis=1)
+            logger.info(f"Generated {embeddings.shape[1]} sentence transformer embeddings for {col}")
+        except Exception as e:
+            logger.warning(f"Failed to generate sentence transformer embeddings: {e}")
+        return result
+
+    def _generate_spacy_embeddings(self, text_data: pd.Series, col: str, result: pd.DataFrame) -> pd.DataFrame:
+        """Generate spaCy embeddings for a text column."""
+        try:
+            spacy_embeddings = []
+            for text in text_data:
+                doc = self.spacy_model_obj(text)
+                # Use average of word embeddings
+                if doc.has_vector:
+                    spacy_embeddings.append(doc.vector[: self.max_features])
+                else:
+                    spacy_embeddings.append(np.zeros(self.max_features))
+
+            spacy_embeddings = np.array(spacy_embeddings)
+            spacy_cols = [f"{col}_spacy_{i}" for i in range(spacy_embeddings.shape[1])]
+            spacy_df = pd.DataFrame(spacy_embeddings, columns=spacy_cols, index=result.index)
+            result = pd.concat([result, spacy_df], axis=1)
+            logger.info(f"Generated {spacy_embeddings.shape[1]} spaCy embeddings for {col}")
+        except Exception as e:
+            logger.warning(f"Failed to generate spaCy embeddings: {e}")
+        return result
+
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Transform text data to embeddings."""
         if not self.is_fitted:
             raise ValueError("TextEmbeddingTransformer must be fitted before transform")
 
         text_columns = _get_text_columns(X)
-
         if not text_columns:
             return X
 
@@ -270,57 +307,14 @@ class TextEmbeddingTransformer(BaseEstimator, TransformerMixin):
 
             # Generate sentence transformer embeddings
             if self.use_sentence_transformers and self.sentence_model is not None:
-                try:
-                    embeddings = self.sentence_model.encode(text_data.tolist())
-                    # Limit to max_features
-                    if embeddings.shape[1] > self.max_features:
-                        embeddings = embeddings[:, : self.max_features]
-
-                    # Create DataFrame with embeddings
-                    embedding_cols = [
-                        f"{col}_embed_{i}" for i in range(embeddings.shape[1])
-                    ]
-                    embedding_df = pd.DataFrame(
-                        embeddings, columns=embedding_cols, index=X.index
-                    )
-                    result = pd.concat([result, embedding_df], axis=1)
-                    logger.info(
-                        f"Generated {embeddings.shape[1]} sentence transformer embeddings for {col}"
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to generate sentence transformer embeddings: {e}"
-                    )
+                result = self._generate_sentence_embeddings(text_data, col, result)
 
             # Generate spaCy embeddings
             if self.use_spacy_embeddings and self.spacy_model_obj is not None:
-                try:
-                    spacy_embeddings = []
-                    for text in text_data:
-                        doc = self.spacy_model_obj(text)
-                        # Use average of word embeddings
-                        if doc.has_vector:
-                            spacy_embeddings.append(doc.vector[: self.max_features])
-                        else:
-                            spacy_embeddings.append(np.zeros(self.max_features))
-
-                    spacy_embeddings = np.array(spacy_embeddings)
-                    spacy_cols = [
-                        f"{col}_spacy_{i}" for i in range(spacy_embeddings.shape[1])
-                    ]
-                    spacy_df = pd.DataFrame(
-                        spacy_embeddings, columns=spacy_cols, index=X.index
-                    )
-                    result = pd.concat([result, spacy_df], axis=1)
-                    logger.info(
-                        f"Generated {spacy_embeddings.shape[1]} spaCy embeddings for {col}"
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to generate spaCy embeddings: {e}")
+                result = self._generate_spacy_embeddings(text_data, col, result)
 
         # Remove original text columns
         result = result.drop(columns=text_columns)
-
         logger.info(f"Text embedding completed. New shape: {result.shape}")
         return result
 
@@ -402,7 +396,7 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
         if len(self.feature_names_) > self.max_features:
             # Keep most important features (simple heuristic)
             feature_importance = np.var(X_numeric, axis=0)
-            top_indices = np.argsort(feature_importance)[-self.max_features :]
+            top_indices = np.argsort(feature_importance)[-self.max_features:]
             self.feature_names_ = [self.feature_names_[i] for i in top_indices]
             logger.warning(
                 f"Limited polynomial features to {len(self.feature_names_)} features"
@@ -561,11 +555,8 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
 
         return self
 
-    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Transform data with outlier handling."""
-        if not self.is_fitted:
-            raise ValueError("AdvancedOutlierDetector must be fitted before transform")
-
+    def _get_numeric_data(self, X: pd.DataFrame) -> tuple[pd.DataFrame, List[str]]:
+        """Get numeric columns and data from input."""
         if hasattr(X, "select_dtypes"):
             numeric_columns = X.select_dtypes(include=[np.number]).columns.tolist()
         else:
@@ -573,9 +564,8 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
             numeric_columns = [f"feature_{i}" for i in range(X.shape[1])]
 
         if not numeric_columns:
-            return X
+            return X, []
 
-        result = X.copy()
         if hasattr(X, "iloc"):
             # Use column names for DataFrame
             X_numeric = X[numeric_columns]
@@ -584,30 +574,52 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
             numeric_indices = list(range(len(numeric_columns)))
             X_numeric = X[:, numeric_indices]
 
+        return X_numeric, numeric_columns
+
+    def _clip_outliers(self, result: pd.DataFrame, X_numeric: pd.DataFrame, numeric_columns: List[str]) -> pd.DataFrame:
+        """Clip outliers to percentiles."""
+        for col in numeric_columns:
+            q1 = X_numeric[col].quantile(0.25)
+            q3 = X_numeric[col].quantile(0.75)
+            iqr = q3 - q1
+            lower_bound = q1 - 1.5 * iqr
+            upper_bound = q3 + 1.5 * iqr
+            result[col] = result[col].clip(lower_bound, upper_bound)
+        return result
+
+    def _scale_features(self, result: pd.DataFrame, X_numeric: pd.DataFrame, numeric_columns: List[str]) -> pd.DataFrame:
+        """Apply robust scaling to features."""
+        if self.scaler is not None:
+            scaled_features = self.scaler.transform(X_numeric)
+            for i, col in enumerate(numeric_columns):
+                result[col] = scaled_features[:, i]
+        return result
+
+    def _remove_outliers(self, result: pd.DataFrame) -> pd.DataFrame:
+        """Remove outlier rows."""
+        outlier_mask = np.zeros(len(result), dtype=bool)
+        for idx in self.outlier_indices_:
+            if idx < len(result):
+                outlier_mask[idx] = True
+        return result[~outlier_mask]
+
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Transform data with outlier handling."""
+        if not self.is_fitted:
+            raise ValueError("AdvancedOutlierDetector must be fitted before transform")
+
+        X_numeric, numeric_columns = self._get_numeric_data(X)
+        if not numeric_columns:
+            return X
+
+        result = X.copy()
+
         if self.handling_method == "clip":
-            # Clip outliers to percentiles
-            for col in numeric_columns:
-                q1 = X_numeric[col].quantile(0.25)
-                q3 = X_numeric[col].quantile(0.75)
-                iqr = q3 - q1
-                lower_bound = q1 - 1.5 * iqr
-                upper_bound = q3 + 1.5 * iqr
-                result[col] = result[col].clip(lower_bound, upper_bound)
-
+            result = self._clip_outliers(result, X_numeric, numeric_columns)
         elif self.handling_method == "transform":
-            # Apply robust scaling
-            if self.scaler is not None:
-                scaled_features = self.scaler.transform(X_numeric)
-                for i, col in enumerate(numeric_columns):
-                    result[col] = scaled_features[:, i]
-
+            result = self._scale_features(result, X_numeric, numeric_columns)
         elif self.handling_method == "remove":
-            # Remove outlier rows
-            outlier_mask = np.zeros(len(X), dtype=bool)
-            for idx in self.outlier_indices_:
-                if idx < len(X):
-                    outlier_mask[idx] = True
-            result = result[~outlier_mask]
+            result = self._remove_outliers(result)
 
         logger.info(f"Outlier handling completed. New shape: {result.shape}")
         return result
@@ -661,7 +673,7 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
         self, scores: np.ndarray, numeric_columns: List[str]
     ) -> List[str]:
         """Select top k features based on scores."""
-        top_indices = np.argsort(scores)[-self.k :]
+        top_indices = np.argsort(scores)[-self.k:]
         return [numeric_columns[i] for i in top_indices]
 
     def _apply_mutual_info_selection(
