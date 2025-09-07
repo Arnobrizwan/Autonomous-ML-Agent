@@ -28,9 +28,10 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy requirements and install dependencies
-COPY requirements.txt ./
+COPY requirements.txt requirements-test.txt ./
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r requirements-test.txt
 
 # =============================================================================
 # STAGE 2: Runtime Image
@@ -59,6 +60,7 @@ WORKDIR /app
 
 # Copy application code
 COPY src/ ./src/
+COPY tests/ ./tests/
 COPY pyproject.toml ./
 COPY README.md ./
 

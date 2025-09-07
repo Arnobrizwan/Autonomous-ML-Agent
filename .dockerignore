@@ -215,7 +215,7 @@ elasticsearch/
 
 # Development and testing scripts
 scripts/
-tests/
+# tests/ - Keep tests for Docker testing
 test_*
 *_test.py
 conftest.py
@@ -232,11 +232,11 @@ configs/
 *.yml
 !pyproject.toml
 
-# Requirements files (keep only production)
+# Requirements files (keep production and test)
 requirements*.txt
 !requirements.txt
+!requirements-test.txt
 requirements-dev.txt
-requirements-test.txt
 requirements-prod.txt
 
 # Backup and temporary files
