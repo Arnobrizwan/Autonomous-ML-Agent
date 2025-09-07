@@ -28,10 +28,9 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy requirements and install dependencies
-COPY requirements.txt requirements-test.txt ./
+COPY requirements-docker.txt ./
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir -r requirements-test.txt
+    pip install --no-cache-dir -r requirements-docker.txt
 
 # =============================================================================
 # STAGE 2: Runtime Image

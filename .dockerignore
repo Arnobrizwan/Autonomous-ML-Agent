@@ -232,10 +232,11 @@ configs/
 *.yml
 !pyproject.toml
 
-# Requirements files (keep production and test)
+# Requirements files (keep production, test, and docker)
 requirements*.txt
 !requirements.txt
 !requirements-test.txt
+!requirements-docker.txt
 requirements-dev.txt
 requirements-prod.txt
 

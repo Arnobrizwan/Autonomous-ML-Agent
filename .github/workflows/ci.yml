@@ -237,7 +237,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.optimized
+          file: ./docker/Dockerfile.simple
           push: false
           load: true
           tags: ${{ env.IMAGE_NAME }}:test
@@ -245,7 +245,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=docker-test
           platforms: linux/amd64
           build-args: |
-            INSTALL_TEST=true
             BUILDKIT_INLINE_CACHE=1
 
       - name: Test Docker image
@@ -284,7 +283,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.optimized
+          file: ./docker/Dockerfile.simple
           push: false
           tags: |
             ${{ env.IMAGE_NAME }}:latest
@@ -300,7 +299,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.optimized
+          file: ./docker/Dockerfile.simple
           push: false
           load: true  # Only works with single platform
           tags: ${{ env.IMAGE_NAME }}:test
@@ -371,7 +370,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.optimized
+          file: ./docker/Dockerfile.simple
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
