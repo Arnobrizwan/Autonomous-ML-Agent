@@ -121,6 +121,18 @@ class RunMetadata:
     best_score: Optional[float] = None
     best_model: Optional[str] = None
     status: str = "running"  # "running", "completed", "failed", "timeout"
+    
+    # Additional attributes for compatibility
+    dataset_hash: Optional[str] = None
+    task_type: Optional[str] = None
+    n_rows: Optional[int] = None
+    n_features: Optional[int] = None
+    n_numeric: Optional[int] = None
+    n_categorical: Optional[int] = None
+    missing_ratio: Optional[float] = None
+    class_balance: Optional[Dict[str, float]] = None
+    best_params: Optional[Dict[str, Any]] = None
+    timestamp: Optional[datetime] = None
 
 
 @dataclass

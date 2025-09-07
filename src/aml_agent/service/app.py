@@ -152,9 +152,17 @@ async def predict_single(request: PredictionRequest):
             prediction=float(prediction),
             probabilities=probabilities,
             model_info={
-                "run_id": loaded_metadata.get("run_id", "unknown"),
+                "run_id": (
+                    loaded_metadata.get("run_id", "unknown")
+                    if loaded_metadata
+                    else "unknown"
+                ),
                 "model_type": type(loaded_pipeline).__name__,
-                "task_type": loaded_metadata.get("task_type", "unknown"),
+                "task_type": (
+                    loaded_metadata.get("task_type", "unknown")
+                    if loaded_metadata
+                    else "unknown"
+                ),
             },
         )
 
@@ -187,9 +195,17 @@ async def predict_batch(request: BatchPredictionRequest):
             probabilities=probabilities,
             n_predictions=len(predictions),
             model_info={
-                "run_id": loaded_metadata.get("run_id", "unknown"),
+                "run_id": (
+                    loaded_metadata.get("run_id", "unknown")
+                    if loaded_metadata
+                    else "unknown"
+                ),
                 "model_type": type(loaded_pipeline).__name__,
-                "task_type": loaded_metadata.get("task_type", "unknown"),
+                "task_type": (
+                    loaded_metadata.get("task_type", "unknown")
+                    if loaded_metadata
+                    else "unknown"
+                ),
             },
         )
 
@@ -226,9 +242,17 @@ async def predict_file(file: UploadFile = File(...)):
             "probabilities": probabilities,
             "n_predictions": len(predictions),
             "model_info": {
-                "run_id": loaded_metadata.get("run_id", "unknown"),
+                "run_id": (
+                    loaded_metadata.get("run_id", "unknown")
+                    if loaded_metadata
+                    else "unknown"
+                ),
                 "model_type": type(loaded_pipeline).__name__,
-                "task_type": loaded_metadata.get("task_type", "unknown"),
+                "task_type": (
+                    loaded_metadata.get("task_type", "unknown")
+                    if loaded_metadata
+                    else "unknown"
+                ),
             },
         }
 

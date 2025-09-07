@@ -504,10 +504,10 @@ def create_sample_data(
     # Generate target
     if task_type == TaskType.CLASSIFICATION:
         # Binary classification
-        target = np.random.randint(0, 2, n_samples)
+        target = np.random.randint(0, 2, n_samples).astype(np.float64)
     else:
         # Regression
-        target = np.random.randn(n_samples)
+        target = np.random.randn(n_samples).astype(np.float64)
 
     feature_data["target"] = target
 

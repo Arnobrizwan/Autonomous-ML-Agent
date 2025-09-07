@@ -27,6 +27,7 @@ __all__ = ["PreprocessingConfig"]
 class ModelConfig(BaseModel):
     """Model configuration for individual models."""
 
+    enabled: bool = True
     class_weight: Optional[str] = None
     early_stopping: bool = False
     validation_fraction: Optional[float] = None

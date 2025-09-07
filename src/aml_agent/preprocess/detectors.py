@@ -177,8 +177,8 @@ class OutlierDetector:
 
     def __init__(self, method: OutlierMethod = OutlierMethod.IQR):
         self.method = method
-        self.outlier_indices = []
-        self.outlier_info = {}
+        self.outlier_indices: List[int] = []
+        self.outlier_info: Dict[str, Any] = {}
 
     def detect_outliers(
         self, data: pd.DataFrame, numeric_columns: List[str]

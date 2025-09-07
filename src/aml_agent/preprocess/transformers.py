@@ -2,7 +2,7 @@
 Data transformers for preprocessing pipeline.
 """
 
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -33,8 +33,8 @@ class ImputationTransformer(BaseEstimator, TransformerMixin):
     ):
         self.numeric_strategy = numeric_strategy
         self.categorical_strategy = categorical_strategy
-        self.numeric_imputer = None
-        self.categorical_imputer = None
+        self.numeric_imputer: Optional[SimpleImputer] = None
+        self.categorical_imputer: Optional[SimpleImputer] = None
         self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y=None):
@@ -54,7 +54,8 @@ class ImputationTransformer(BaseEstimator, TransformerMixin):
             }
             strategy = strategy_map.get(self.numeric_strategy, "median")
             self.numeric_imputer = SimpleImputer(strategy=strategy)
-            self.numeric_imputer.fit(X[numeric_cols])
+            if self.numeric_imputer is not None:
+                self.numeric_imputer.fit(X[numeric_cols])
 
         # Fit categorical imputer
         if categorical_cols:
@@ -64,7 +65,8 @@ class ImputationTransformer(BaseEstimator, TransformerMixin):
             }
             strategy = strategy_map.get(self.categorical_strategy, "most_frequent")
             self.categorical_imputer = SimpleImputer(strategy=strategy)
-            self.categorical_imputer.fit(X[categorical_cols])
+            if self.categorical_imputer is not None:
+                self.categorical_imputer.fit(X[categorical_cols])
 
         self.is_fitted = True
         self.feature_names_in_ = X.columns.tolist()
@@ -124,7 +126,7 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
         self.method = method
         self.max_categories = max_categories
         self.handle_unknown = handle_unknown
-        self.encoders = {}
+        self.encoders: Dict[str, Any] = {}
         self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y=None):
@@ -262,7 +264,7 @@ class FeatureScaler(BaseEstimator, TransformerMixin):
 
     def __init__(self, method: str = "standard"):
         self.method = method
-        self.scaler = None
+        self.scaler: Optional[Any] = None
         self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y=None):
@@ -276,7 +278,8 @@ class FeatureScaler(BaseEstimator, TransformerMixin):
         else:
             raise ValueError(f"Unknown scaling method: {self.method}")
 
-        self.scaler.fit(X)
+        if self.scaler is not None:
+            self.scaler.fit(X)
         self.is_fitted = True
         self.feature_names_in_ = X.columns.tolist()
         return self
@@ -286,7 +289,10 @@ class FeatureScaler(BaseEstimator, TransformerMixin):
         if not self.is_fitted:
             raise ValueError("Transformer must be fitted before transform")
 
-        X_scaled = self.scaler.transform(X)
+        if self.scaler is not None:
+            X_scaled = self.scaler.transform(X)
+        else:
+            X_scaled = X.values
         return pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
 
     def get_feature_names_out(self, input_features=None):
@@ -365,7 +371,7 @@ class TextFeatureExtractor(BaseEstimator, TransformerMixin):
         self.max_features = max_features
         self.min_df = min_df
         self.vectorizer = None
-        self.text_columns = []
+        self.text_columns: List[str] = []
         self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y=None):
@@ -389,7 +395,8 @@ class TextFeatureExtractor(BaseEstimator, TransformerMixin):
                 min_df=self.min_df,
                 stop_words="english",
             )
-            self.vectorizer.fit(text_data)
+            if self.vectorizer is not None:
+                self.vectorizer.fit(text_data)
 
         self.is_fitted = True
         self.feature_names_in_ = X.columns.tolist()
@@ -444,8 +451,8 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
     def __init__(self, method: str = "variance", k: int = 100):
         self.method = method
         self.k = k
-        self.selector = None
-        self.selected_features = []
+        self.selector: Optional[Any] = None
+        self.selected_features: List[str] = []
         self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y=None):
@@ -454,8 +461,9 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
             from sklearn.feature_selection import VarianceThreshold
 
             self.selector = VarianceThreshold(threshold=0.01)
-            self.selector.fit(X)
-            self.selected_features = X.columns[self.selector.get_support()].tolist()
+            if self.selector is not None:
+                self.selector.fit(X)
+                self.selected_features = X.columns[self.selector.get_support()].tolist()
 
         elif self.method == "k_best":
             from sklearn.feature_selection import SelectKBest, f_classif, f_regression
@@ -472,8 +480,9 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
             self.selector = SelectKBest(
                 score_func=score_func, k=min(self.k, X.shape[1])
             )
-            self.selector.fit(X, y)
-            self.selected_features = X.columns[self.selector.get_support()].tolist()
+            if self.selector is not None:
+                self.selector.fit(X, y)
+                self.selected_features = X.columns[self.selector.get_support()].tolist()
 
         self.is_fitted = True
         self.feature_names_in_ = X.columns.tolist()

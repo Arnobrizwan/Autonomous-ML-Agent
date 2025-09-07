@@ -57,8 +57,8 @@ class Leaderboard:
             score=result.score,
             metric=result.metric,
             params=result.params,
-            cv_mean=cv_mean,
-            cv_std=cv_std,
+            cv_mean=float(cv_mean),
+            cv_std=float(cv_std),
             fit_time=result.fit_time,
             predict_time=result.predict_time,
             trial_id=result.trial_id,
@@ -218,7 +218,7 @@ class Leaderboard:
         predict_times = [entry.predict_time for entry in self.entries]
 
         # Group by model type
-        model_stats = {}
+        model_stats: Dict[str, List[float]] = {}
         for entry in self.entries:
             model_type = entry.model_type.value
             if model_type not in model_stats:
@@ -321,7 +321,7 @@ def compare_models(leaderboard: Leaderboard, model_types: List[str]) -> None:
     table.add_column("Mean Fit Time", style="red")
 
     # Group by model type
-    model_groups = {}
+    model_groups: Dict[str, List[LeaderboardEntry]] = {}
     for entry in filtered_entries:
         model_type = entry.model_type.value
         if model_type not in model_groups:

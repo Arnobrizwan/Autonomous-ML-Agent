@@ -143,7 +143,7 @@ class EnsembleBuilder:
 
         # Create weighted ensemble
         models = []
-        weights = []
+        weights: List[float] = []
 
         for result in trial_results:
             model = get_model_factory(result.model_type, self.task_type, result.params)
@@ -151,8 +151,9 @@ class EnsembleBuilder:
             weights.append(result.score)  # Use score as weight
 
         # Normalize weights
-        weights = np.array(weights)
-        weights = weights / weights.sum()
+        weights_array = np.array(weights)
+        weights_array = weights_array / weights_array.sum()
+        weights = weights_array.tolist()
 
         return WeightedEnsemble(models, weights, self.task_type)
 
@@ -203,7 +204,7 @@ class WeightedEnsemble(BaseEstimator):
         if not self.is_fitted:
             raise ValueError("Ensemble must be fitted before predict")
 
-        predictions = []
+        predictions: List[np.ndarray] = []
         for model in self.models:
             pred = model.predict(X)
             predictions.append(pred)
@@ -230,7 +231,7 @@ class WeightedEnsemble(BaseEstimator):
         if not proba_models:
             raise ValueError("No models support predict_proba")
 
-        probabilities = []
+        probabilities: List[np.ndarray] = []
         for model in proba_models:
             proba = model.predict_proba(X)
             probabilities.append(proba)

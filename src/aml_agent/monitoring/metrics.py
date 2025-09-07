@@ -5,7 +5,7 @@ Monitoring and metrics collection for ML models.
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -32,7 +32,7 @@ class HealthChecker:
     """Health checker for ML models and system components."""
 
     def __init__(self):
-        self.checks = []
+        self.checks: List[Tuple[str, Any]] = []
 
     def add_check(self, name: str, check_func):
         """Add a health check function."""
@@ -40,7 +40,7 @@ class HealthChecker:
 
     def run_health_checks(self) -> Dict[str, Any]:
         """Run all health checks and return status."""
-        results = {"status": "healthy", "checks": {}}
+        results: Dict[str, Any] = {"status": "healthy", "checks": {}}
 
         for name, check_func in self.checks:
             try:
@@ -74,7 +74,7 @@ class PerformanceMonitor:
             return {"status": "no_data"}
 
         # Group metrics by name
-        metric_groups = {}
+        metric_groups: Dict[str, List[Any]] = {}
         for metric in self.metrics:
             name = metric["name"]
             if name not in metric_groups:
@@ -105,7 +105,7 @@ class MetricsCollector:
         self.task_type = task_type
         self.metrics_dir = Path(metrics_dir)
         self.metrics_dir.mkdir(parents=True, exist_ok=True)
-        self.metrics_history = []
+        self.metrics_history: List[Dict[str, Any]] = []
 
     def calculate_metrics(
         self,
@@ -381,9 +381,14 @@ class MetricsCollector:
 
         for key in metric_keys:
             values = [m.get(key) for m in metrics_list if m.get(key) is not None]
-            if values:
-                avg_metrics[f"avg_{key}"] = sum(values) / len(values)
-                avg_metrics[f"std_{key}"] = pd.Series(values).std()
+            if values and all(v is not None for v in values):
+                # Ensure all values are numeric
+                numeric_values = [float(v) for v in values if v is not None]
+                if numeric_values:
+                    avg_metrics[f"avg_{key}"] = sum(numeric_values) / len(
+                        numeric_values
+                    )
+                    avg_metrics[f"std_{key}"] = pd.Series(numeric_values).std()
 
         return avg_metrics
 
@@ -397,9 +402,14 @@ class MetricsCollector:
 
         for key in metric_keys:
             values = [m.get(key) for m in metrics_list if m.get(key) is not None]
-            if values:
-                avg_metrics[f"avg_{key}"] = sum(values) / len(values)
-                avg_metrics[f"std_{key}"] = pd.Series(values).std()
+            if values and all(v is not None for v in values):
+                # Ensure all values are numeric
+                numeric_values = [float(v) for v in values if v is not None]
+                if numeric_values:
+                    avg_metrics[f"avg_{key}"] = sum(numeric_values) / len(
+                        numeric_values
+                    )
+                    avg_metrics[f"std_{key}"] = pd.Series(numeric_values).std()
 
         return avg_metrics
 
