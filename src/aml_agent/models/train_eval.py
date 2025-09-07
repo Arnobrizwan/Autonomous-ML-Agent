@@ -221,6 +221,96 @@ class ModelTrainer:
             "score": score,
         }
 
+    def _sample_hyperparameters(self, trial, search_space: Dict[str, Any]) -> Dict[str, Any]:
+        """Sample hyperparameters from search space."""
+        import optuna
+
+        params = {}
+        for param, distribution in search_space.items():
+            if isinstance(distribution, optuna.distributions.CategoricalDistribution):
+                params[param] = trial.suggest_categorical(param, distribution.choices)
+            elif isinstance(distribution, optuna.distributions.IntDistribution):
+                params[param] = trial.suggest_int(
+                    param, distribution.low, distribution.high, step=distribution.step
+                )
+            elif isinstance(distribution, optuna.distributions.FloatDistribution):
+                if distribution.log:
+                    params[param] = trial.suggest_float(
+                        param, distribution.low, distribution.high, log=True
+                    )
+                else:
+                    params[param] = trial.suggest_float(
+                        param, distribution.low, distribution.high
+                    )
+        return params
+
+    def _evaluate_trial(
+        self, trial, model_type: ModelType, X: pd.DataFrame, y: pd.Series, search_space: Dict[str, Any]
+    ) -> float:
+        """Evaluate a single trial."""
+
+        # Sample parameters
+        params = self._sample_hyperparameters(trial, search_space)
+        params = validate_model_params(model_type, params)
+
+        # Create and train model
+        model = get_model_factory(model_type, self.task_type, params)
+
+        # Evaluate with CV
+        start_time = time.time()
+        try:
+            eval_results = self._evaluate_with_cv(model, X, y)
+            fit_time = time.time() - start_time
+
+            # Calculate predict time (rough estimate)
+            predict_start = time.time()
+            model.predict(X.head(100))  # Sample prediction
+            predict_time = (time.time() - predict_start) * (len(X) / 100)
+
+            # Store trial results
+            trial.set_user_attr("fit_time", fit_time)
+            trial.set_user_attr("predict_time", predict_time)
+            trial.set_user_attr("cv_scores", eval_results["cv_scores"])
+
+            return eval_results["score"]
+        except Exception as e:
+            # Handle model-specific errors gracefully
+            error_msg = str(e)
+            if "constant" in error_msg.lower() or "ignored" in error_msg.lower():
+                logger.warning(f"Model {model_type} failed due to constant features: {error_msg}")
+                return 0.0
+            else:
+                raise e
+
+    def _create_trial_result(self, trial, trial_id: int, model_type: ModelType, status: str) -> TrialResult:
+        """Create a TrialResult from a trial."""
+        if status == "completed":
+            return TrialResult(
+                trial_id=trial_id,
+                model_type=model_type,
+                params=trial.params,
+                score=trial.value,
+                metric=self.metric,
+                cv_scores=trial.user_attrs.get("cv_scores", []),
+                fit_time=trial.user_attrs.get("fit_time", 0),
+                predict_time=trial.user_attrs.get("predict_time", 0),
+                timestamp=datetime.now(),
+                status=status,
+            )
+        else:
+            return TrialResult(
+                trial_id=trial_id,
+                model_type=model_type,
+                params=trial.params,
+                score=0.0,
+                metric=self.metric,
+                cv_scores=[],
+                fit_time=0,
+                predict_time=0,
+                timestamp=datetime.now(),
+                status=status,
+            )
+
     def optimize_hyperparameters(
         self,
         model_type: ModelType,
@@ -262,68 +352,7 @@ class ModelTrainer:
             # Check budget
             if budget_clock and budget_clock.is_expired():
                 raise optuna.TrialPruned()
-
-            # Sample parameters
-            params = {}
-            for param, distribution in search_space.items():
-                if isinstance(
-                    distribution, optuna.distributions.CategoricalDistribution
-                ):
-                    params[param] = trial.suggest_categorical(
-                        param, distribution.choices
-                    )
-                elif isinstance(distribution, optuna.distributions.IntDistribution):
-                    params[param] = trial.suggest_int(
-                        param,
-                        distribution.low,
-                        distribution.high,
-                        step=distribution.step,
-                    )
-                elif isinstance(distribution, optuna.distributions.FloatDistribution):
-                    if distribution.log:
-                        params[param] = trial.suggest_float(
-                            param, distribution.low, distribution.high, log=True
-                        )
-                    else:
-                        params[param] = trial.suggest_float(
-                            param, distribution.low, distribution.high
-                        )
-
-            # Validate parameters
-            params = validate_model_params(model_type, params)
-
-            # Create and train model
-            model = get_model_factory(model_type, self.task_type, params)
-
-            # Evaluate with CV
-            start_time = time.time()
-            try:
-                eval_results = self._evaluate_with_cv(model, X, y)
-                fit_time = time.time() - start_time
-
-                # Calculate predict time (rough estimate)
-                predict_start = time.time()
-                model.predict(X.head(100))  # Sample prediction
-                predict_time = (time.time() - predict_start) * (len(X) / 100)
-
-                # Store trial results
-                trial.set_user_attr("fit_time", fit_time)
-                trial.set_user_attr("predict_time", predict_time)
-                trial.set_user_attr("cv_scores", eval_results["cv_scores"])
-
-                return eval_results["score"]
-            except Exception as e:
-                # Handle model-specific errors gracefully
-                error_msg = str(e)
-                if "constant" in error_msg.lower() or "ignored" in error_msg.lower():
-                    # For constant features error (common with small datasets), return a low score
-                    logger.warning(
-                        f"Model {model_type} failed due to constant features: {error_msg}"
-                    )
-                    return 0.0
-                else:
-                    # Re-raise other errors
-                    raise e
+            return self._evaluate_trial(trial, model_type, X, y, search_space)
 
         # Run optimization
         try:
@@ -338,34 +367,9 @@ class ModelTrainer:
         # Convert trials to results
         results = []
         for i, trial in enumerate(study.trials):
-            if trial.state == optuna.trial.TrialState.COMPLETE:
-                result = TrialResult(
-                    trial_id=i,
-                    model_type=model_type,
-                    params=trial.params,
-                    score=trial.value,
-                    metric=self.metric,
-                    cv_scores=trial.user_attrs.get("cv_scores", []),
-                    fit_time=trial.user_attrs.get("fit_time", 0),
-                    predict_time=trial.user_attrs.get("predict_time", 0),
-                    timestamp=datetime.now(),
-                    status="completed",
-                )
-                results.append(result)
-            else:
-                result = TrialResult(
-                    trial_id=i,
-                    model_type=model_type,
-                    params=trial.params,
-                    score=0.0,
-                    metric=self.metric,
-                    cv_scores=[],
-                    fit_time=0,
-                    predict_time=0,
-                    timestamp=datetime.now(),
-                    status="failed",
-                )
-                results.append(result)
+            status = "completed" if trial.state == optuna.trial.TrialState.COMPLETE else "failed"
+            result = self._create_trial_result(trial, i, model_type, status)
+            results.append(result)
 
         logger.info(f"Completed {len(results)} trials for {model_type.value}")
         return results
