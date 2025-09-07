@@ -270,7 +270,7 @@ def security():
 
 @app.command()
 def explain(
-    run_id: str = typer.Argument(..., help="Run ID"),
+    run_id: str = typer.Argument(help="Run ID"),
     feature: Optional[str] = typer.Option(
         None, "--feature", help="Specific feature to explain"
     ),
@@ -396,7 +396,7 @@ def explain(
 
 @app.command()
 def serve(
-    run_id: str = typer.Argument(..., help="Run ID"),
+    run_id: str = typer.Argument(help="Run ID"),
     host: str = typer.Option("0.0.0.0", "--host", help="Host to bind to"),
     port: int = typer.Option(
         None, "--port", help="Port to bind to (default from config)"
@@ -435,7 +435,7 @@ def serve(
 
 @app.command()
 def predict(
-    run_id: str = typer.Argument(..., help="Run ID"),
+    run_id: str = typer.Argument(help="Run ID"),
     row: Optional[str] = typer.Option(None, "--row", help="JSON row to predict"),
     file: Optional[Path] = typer.Option(None, "--file", help="CSV file to predict"),
     stdin: bool = typer.Option(False, "--stdin", help="Read from stdin"),
@@ -529,7 +529,7 @@ def predict(
 
 @app.command()
 def export(
-    run_id: str = typer.Argument(..., help="Run ID"),
+    run_id: str = typer.Argument(help="Run ID"),
     format: str = typer.Option("joblib", "--format", help="Export format"),
     output_dir: Optional[Path] = typer.Option(
         None, "--output", help="Output directory"
@@ -593,7 +593,11 @@ def init():
 
 def main():
     """Main entry point."""
-    app()
+    try:
+        app()
+    except Exception as e:
+        console.print(f"[bold red]Error: {str(e)}[/bold red]")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
