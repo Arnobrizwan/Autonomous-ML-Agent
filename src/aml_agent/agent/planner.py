@@ -54,7 +54,7 @@ class LLMPlanner:
                 headers={"Authorization": f"Bearer {self.llm_config.api_key}"},
             )
 
-    def create_plan(self, context: PlanningContext) -> PlannerProposal:
+    async def create_plan(self, context: PlanningContext) -> PlannerProposal:
         """
         Create optimization plan based on context.
 
@@ -65,15 +65,15 @@ class LLMPlanner:
             Optimization plan proposal
         """
         if self.llm_config.enabled and self.client:
-            return self._create_llm_plan(context)
+            return await self._create_llm_plan(context)
         else:
             return self._create_heuristic_plan(context)
 
-    def _create_llm_plan(self, context: PlanningContext) -> PlannerProposal:
+    async def _create_llm_plan(self, context: PlanningContext) -> PlannerProposal:
         """Create plan using LLM."""
         try:
             prompt = self._build_planning_prompt(context)
-            response = self._call_llm(prompt)
+            response = await self._call_llm(prompt)
             return self._parse_llm_response(response, context)
         except Exception as e:
             logger.warning(f"LLM planning failed: {e}, falling back to heuristics")
@@ -95,11 +95,23 @@ class LLMPlanner:
         # Determine ensemble strategy
         ensemble_strategy = self._determine_ensemble_strategy_heuristic(context)
 
+        # Convert ensemble_strategy dict to EnsembleConfig if provided
+        ensemble_config = None
+        if ensemble_strategy:
+            from ..types import EnsembleConfig
+
+            ensemble_config = EnsembleConfig(
+                method=ensemble_strategy.get("method", "voting"),
+                top_k=ensemble_strategy.get("top_k", 3),
+                meta_learner=ensemble_strategy.get("meta_learner"),
+                weights=ensemble_strategy.get("weights"),
+            )
+
         return PlannerProposal(
             candidate_models=candidate_models,
             search_budgets=search_budgets,
             metric=metric,
-            ensemble_strategy=ensemble_strategy,
+            ensemble_strategy=ensemble_config,
             reasoning="Heuristic-based plan using dataset characteristics",
         )
 
@@ -227,6 +239,8 @@ Example response:
 
     async def _call_openai(self, prompt: str) -> str:
         """Call OpenAI API."""
+        if self.client is None:
+            raise ValueError("Client not initialized")
         response = await self.client.post(
             "/chat/completions",
             json={
@@ -242,6 +256,8 @@ Example response:
 
     async def _call_gemini(self, prompt: str) -> str:
         """Call Gemini API."""
+        if self.client is None:
+            raise ValueError("Client not initialized")
         response = await self.client.post(
             f"/models/{self.llm_config.model}:generateContent",
             json={

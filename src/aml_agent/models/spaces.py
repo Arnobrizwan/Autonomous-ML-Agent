@@ -186,7 +186,7 @@ class SearchSpaceBuilder:
         self, custom_space: Dict[str, Any], model_type: ModelType
     ) -> Dict[str, Any]:
         """Validate and convert custom search space to Optuna format."""
-        validated_space = {}
+        validated_space: Dict[str, Any] = {}
 
         for param, value in custom_space.items():
             if isinstance(value, list):

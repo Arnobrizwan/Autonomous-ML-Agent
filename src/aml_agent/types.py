@@ -121,7 +121,7 @@ class RunMetadata:
     best_score: Optional[float] = None
     best_model: Optional[str] = None
     status: str = "running"  # "running", "completed", "failed", "timeout"
-    
+
     # Additional attributes for compatibility
     dataset_hash: Optional[str] = None
     task_type: Optional[str] = None

@@ -43,12 +43,13 @@ class PreprocessingPipeline:
         self.type_detector = TypeDetector()
         self.missing_detector = MissingValueDetector()
         self.outlier_detector = OutlierDetector(self.config.outlier_method)
-        self.feature_names_ = []
-        self.target_encoder = None
+        self.feature_names_: List[str] = []
+        self.target_encoder: Optional[Any] = None
         self.is_fitted = False
 
         # Advanced feature engineering components
-        self.advanced_pipeline = None
+        self.advanced_pipeline: Optional[Any] = None
+        self.advanced_transformers: Optional[Dict[str, Any]] = None
         if self.use_advanced_features:
             try:
                 from .advanced_transformers import (
@@ -98,13 +99,17 @@ class PreprocessingPipeline:
         self._build_pipeline(X, y)
 
         # Fit pipeline
-        self.pipeline.fit(X, y)
+        if self.pipeline is not None:
+            self.pipeline.fit(X, y)
 
         # Apply advanced feature engineering if enabled
         if self.advanced_pipeline is not None:
             logger.info("Applying advanced feature engineering...")
             # Apply advanced features to the preprocessed data
-            X_preprocessed = self.pipeline.transform(X)
+            if self.pipeline is not None:
+                X_preprocessed = self.pipeline.transform(X)
+            else:
+                X_preprocessed = X
             X_advanced = self.advanced_pipeline.fit_transform(X_preprocessed, y)
             logger.info(
                 f"Advanced features generated. Shape: {X.shape} -> {X_advanced.shape}"
@@ -124,7 +129,8 @@ class PreprocessingPipeline:
         )
         if y is not None and encode_categorical == "target":
             self.target_encoder = LabelEncoder()
-            self.target_encoder.fit(y)
+            if self.target_encoder is not None:
+                self.target_encoder.fit(y)
 
         self.is_fitted = True
         logger.info(
@@ -149,7 +155,10 @@ class PreprocessingPipeline:
         logger.info("Transforming data through preprocessing pipeline")
 
         # Apply pipeline
-        X_transformed = self.pipeline.transform(X)
+        if self.pipeline is not None:
+            X_transformed = self.pipeline.transform(X)
+        else:
+            X_transformed = X.values
 
         # Convert to DataFrame
         # Generate feature names based on the actual transformed shape
@@ -275,7 +284,9 @@ class PreprocessingPipeline:
 
     def _get_feature_names(self, X: pd.DataFrame) -> List[str]:
         """Get feature names after transformation."""
-        if hasattr(self.pipeline, "get_feature_names_out"):
+        if self.pipeline is not None and hasattr(
+            self.pipeline, "get_feature_names_out"
+        ):
             feature_names = self.pipeline.get_feature_names_out().tolist()
             # Ensure unique feature names
             unique_names = []

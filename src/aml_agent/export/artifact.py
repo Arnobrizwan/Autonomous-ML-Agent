@@ -277,7 +277,11 @@ class ArtifactExporter:
         metadata_dict = {
             "run_id": metadata.run_id,
             "dataset_hash": metadata.dataset_hash,
-            "task_type": metadata.task_type.value,
+            "task_type": (
+                metadata.task_type.value
+                if hasattr(metadata.task_type, "value")
+                else metadata.task_type
+            ),
             "n_rows": metadata.n_rows,
             "n_features": metadata.n_features,
             "n_numeric": metadata.n_numeric,
@@ -287,7 +291,7 @@ class ArtifactExporter:
             "best_model": metadata.best_model,
             "best_score": metadata.best_score,
             "best_params": metadata.best_params,
-            "timestamp": metadata.timestamp.isoformat(),
+            "timestamp": metadata.timestamp.isoformat() if metadata.timestamp else None,
         }
 
         with open(path, "w") as f:

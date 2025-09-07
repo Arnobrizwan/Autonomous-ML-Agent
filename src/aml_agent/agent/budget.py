@@ -5,6 +5,7 @@ Budget management for time-limited optimization.
 import time
 from contextlib import contextmanager
 from datetime import datetime
+from typing import List
 
 from ..logging import get_logger
 from ..types import BudgetClock
@@ -89,7 +90,7 @@ class AdaptiveBudgetManager(BudgetManager):
     def __init__(self, time_budget_seconds: float, min_trial_time: float = 5.0):
         super().__init__(time_budget_seconds)
         self.min_trial_time = min_trial_time
-        self.trial_times = []
+        self.trial_times: List[float] = []
         self.estimated_remaining_trials = 0
 
     def estimate_remaining_trials(self) -> int:

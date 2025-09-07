@@ -50,7 +50,11 @@ class MetaStore:
         run_dict = {
             "run_id": run_metadata.run_id,
             "dataset_hash": run_metadata.dataset_hash,
-            "task_type": run_metadata.task_type.value,
+            "task_type": (
+                run_metadata.task_type.value
+                if hasattr(run_metadata.task_type, "value")
+                else run_metadata.task_type
+            ),
             "n_rows": run_metadata.n_rows,
             "n_features": run_metadata.n_features,
             "n_numeric": run_metadata.n_numeric,
@@ -60,7 +64,9 @@ class MetaStore:
             "best_model": run_metadata.best_model,
             "best_score": run_metadata.best_score,
             "best_params": run_metadata.best_params,
-            "timestamp": run_metadata.timestamp.isoformat(),
+            "timestamp": (
+                run_metadata.timestamp.isoformat() if run_metadata.timestamp else None
+            ),
         }
 
         if existing_idx is not None:
