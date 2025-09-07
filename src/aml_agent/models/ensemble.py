@@ -153,9 +153,8 @@ class EnsembleBuilder:
         # Normalize weights
         weights_array = np.array(weights)
         weights_array = weights_array / weights_array.sum()
-        weights = weights_array.tolist()
 
-        return WeightedEnsemble(models, weights, self.task_type)
+        return WeightedEnsemble(models, weights_array, self.task_type)
 
     def _supports_proba(self, estimators: List[tuple]) -> bool:
         """Check if all estimators support predict_proba."""
@@ -210,8 +209,8 @@ class WeightedEnsemble(BaseEstimator):
             predictions.append(pred)
 
         # Weighted average
-        predictions = np.array(predictions)
-        weighted_pred = np.average(predictions, axis=0, weights=self.weights)
+        predictions_array = np.array(predictions)
+        weighted_pred = np.average(predictions_array, axis=0, weights=self.weights)
 
         if self.task_type == TaskType.CLASSIFICATION:
             return np.round(weighted_pred).astype(int)
@@ -237,9 +236,9 @@ class WeightedEnsemble(BaseEstimator):
             probabilities.append(proba)
 
         # Weighted average of probabilities
-        probabilities = np.array(probabilities)
+        probabilities_array = np.array(probabilities)
         weighted_proba = np.average(
-            probabilities, axis=0, weights=self.weights[: len(proba_models)]
+            probabilities_array, axis=0, weights=self.weights[: len(proba_models)]
         )
 
         return weighted_proba

@@ -245,7 +245,8 @@ def _get_default_params(model_type: ModelType, task_type: TaskType) -> Dict[str,
         },
     }
 
-    return defaults.get(model_type, {})
+    result = defaults.get(model_type, {})
+    return result if isinstance(result, dict) else {}
 
 
 def get_model_info(model_type: ModelType) -> Dict[str, Any]:

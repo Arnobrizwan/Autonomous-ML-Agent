@@ -3,7 +3,7 @@ Main agent loop for autonomous ML pipeline.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -44,18 +44,20 @@ class AgentLoop:
         )
 
         # Initialize components
-        self.preprocessor = None
-        self.trainer = None
-        self.planner = None
-        self.budget_manager = None
+        self.preprocessor: Optional[Any] = None
+        self.trainer: Optional[Any] = None
+        self.planner: Optional[Any] = None
+        self.budget_manager: Optional[Any] = None
         self.leaderboard = Leaderboard()
 
         # Results storage
-        self.trial_results = []
+        self.trial_results: List[Any] = []
         self.ensemble_model = None
         self.final_pipeline = None
 
-    def run(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> Dict[str, Any]:
+    async def run(
+        self, X: pd.DataFrame, y: Optional[pd.Series] = None
+    ) -> Dict[str, Any]:
         """
         Run the complete autonomous ML pipeline.
 
@@ -79,7 +81,9 @@ class AgentLoop:
 
             # Step 3: Create optimization plan
             logger.info("Step 3: Creating optimization plan")
-            plan = self._create_optimization_plan(X_processed, y_processed, task_type)
+            plan = await self._create_optimization_plan(
+                X_processed, y_processed, task_type
+            )
 
             # Step 4: Run hyperparameter optimization
             logger.info("Step 4: Running hyperparameter optimization")
@@ -147,10 +151,21 @@ class AgentLoop:
         self.metadata.dataset_profile = dataset_profile
 
         # Create preprocessing pipeline
-        self.preprocessor = PreprocessingPipeline(self.config.preprocessing)
+        from ..preprocess.config import PreprocessingConfig
+        from ..preprocess.pipeline import PreprocessingPipeline
+
+        preprocessing_config = (
+            PreprocessingConfig.from_dict(self.config.preprocessing)
+            if isinstance(self.config.preprocessing, dict)
+            else self.config.preprocessing
+        )
+        self.preprocessor = PreprocessingPipeline(preprocessing_config)
 
         # Fit and transform data
-        X_processed = self.preprocessor.fit_transform(X, y)
+        if self.preprocessor is not None:
+            X_processed = self.preprocessor.fit_transform(X, y)
+        else:
+            X_processed = X
 
         logger.info(f"Preprocessed data: {X.shape} -> {X_processed.shape}")
         logger.info(f"Detected task type: {task_type}")
@@ -163,7 +178,14 @@ class AgentLoop:
         logger.info(
             f"Config metric: {self.config.metric}, type: {type(self.config.metric)}"
         )
-        metric = select_metric(task_type, self.config.metric)
+        from ..types import MetricType
+
+        metric_name = str(self.config.metric)
+        metric = (
+            MetricType(metric_name)
+            if hasattr(MetricType, metric_name)
+            else MetricType.ACCURACY
+        )
         logger.info(f"Selected metric: {metric}")
         self.trainer = ModelTrainer(
             task_type=task_type,
@@ -184,7 +206,7 @@ class AgentLoop:
         self.budget_manager = create_budget_manager(self.config.time_budget_seconds)
         logger.info("Budget manager initialized")
 
-    def _create_optimization_plan(
+    async def _create_optimization_plan(
         self, X: pd.DataFrame, y: pd.Series, task_type: TaskType
     ) -> Any:
         """Create optimization plan using planner."""
@@ -195,6 +217,8 @@ class AgentLoop:
         available_models = registry.get_available_models(task_type)
 
         # Create planning context
+        if self.metadata.dataset_profile is None:
+            raise ValueError("Dataset profile not available")
         context = create_planning_context(
             dataset_profile=self.metadata.dataset_profile,
             task_type=task_type,
@@ -203,7 +227,10 @@ class AgentLoop:
         )
 
         # Create plan
-        plan = self.planner.create_plan(context)
+        if self.planner is not None:
+            plan = await self.planner.create_plan(context)
+        else:
+            raise ValueError("Planner not initialized")
 
         logger.info(
             f"Created optimization plan: {len(plan.candidate_models)} models, "
@@ -215,7 +242,10 @@ class AgentLoop:
     def _run_optimization(self, X: pd.DataFrame, y: pd.Series, plan: Any):
         """Run hyperparameter optimization."""
         for model_type in plan.candidate_models:
-            if not self.budget_manager.check_budget():
+            if (
+                self.budget_manager is not None
+                and not self.budget_manager.check_budget()
+            ):
                 logger.info("Budget expired, stopping optimization")
                 break
 
@@ -225,13 +255,19 @@ class AgentLoop:
             logger.info(f"Optimizing {model_type.value} with {n_trials} trials")
 
             # Run optimization
-            model_results = self.trainer.optimize_hyperparameters(
-                model_type=model_type,
-                X=X,
-                y=y,
-                n_trials=n_trials,
-                budget_clock=self.budget_manager.budget_clock,
-            )
+            if self.trainer is not None and self.budget_manager is not None:
+                model_results = self.trainer.optimize_hyperparameters(
+                    model_type=model_type,
+                    X=X,
+                    y=y,
+                    n_trials=n_trials,
+                    budget_clock=self.budget_manager.budget_clock,
+                )
+            else:
+                logger.warning(
+                    "Trainer or budget manager not initialized, skipping optimization"
+                )
+                continue
 
             # Add to results
             self.trial_results.extend(model_results)
@@ -262,9 +298,14 @@ class AgentLoop:
             return
 
         try:
-            ensemble_builder = EnsembleBuilder(
-                task_type=self.trainer.task_type, random_seed=self.config.random_seed
-            )
+            if self.trainer is not None:
+                ensemble_builder = EnsembleBuilder(
+                    task_type=self.trainer.task_type,
+                    random_seed=self.config.random_seed,
+                )
+            else:
+                logger.warning("Trainer not initialized, skipping ensemble creation")
+                return
 
             self.ensemble_model = ensemble_builder.create_ensemble(
                 trial_results=self.trial_results,
@@ -357,7 +398,7 @@ class AgentLoop:
         logger.info(f"Results exported to {self.artifacts_dir}")
 
 
-def run_autonomous_ml(
+async def run_autonomous_ml(
     config: Config, X: pd.DataFrame, y: Optional[pd.Series] = None
 ) -> Dict[str, Any]:
     """
@@ -372,4 +413,4 @@ def run_autonomous_ml(
         Pipeline results
     """
     agent = AgentLoop(config)
-    return agent.run(X, y)
+    return await agent.run(X, y)

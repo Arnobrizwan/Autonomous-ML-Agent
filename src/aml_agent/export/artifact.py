@@ -279,7 +279,7 @@ class ArtifactExporter:
             "dataset_hash": metadata.dataset_hash,
             "task_type": (
                 metadata.task_type.value
-                if hasattr(metadata.task_type, "value")
+                if metadata.task_type and hasattr(metadata.task_type, "value")
                 else metadata.task_type
             ),
             "n_rows": metadata.n_rows,

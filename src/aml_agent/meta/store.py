@@ -52,7 +52,7 @@ class MetaStore:
             "dataset_hash": run_metadata.dataset_hash,
             "task_type": (
                 run_metadata.task_type.value
-                if hasattr(run_metadata.task_type, "value")
+                if run_metadata.task_type and hasattr(run_metadata.task_type, "value")
                 else run_metadata.task_type
             ),
             "n_rows": run_metadata.n_rows,
