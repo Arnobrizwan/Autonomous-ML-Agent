@@ -109,7 +109,15 @@ class TestPreprocessing:
         transformed = transformer.fit_transform(data)
 
         # Check for null values in numpy array
-        assert not np.isnan(transformed).any()
+        # Handle both numeric and object arrays
+        if transformed.dtype.kind in ["f", "i"]:  # numeric types
+            assert not np.isnan(transformed).any()
+        else:  # object arrays
+            # Check for None, NaN, or empty string values
+            null_mask = np.array(
+                [pd.isna(x) if pd.isna(x) else False for x in transformed.flat]
+            )
+            assert not null_mask.any()
         # Check data types (numpy array will have consistent dtype)
         assert transformed.dtype in ["int64", "float64", "object"]
 
@@ -128,7 +136,15 @@ class TestPreprocessing:
         # Should have more columns after one-hot encoding
         assert transformed.shape[1] > data.shape[1]
         # Check for null values in numpy array
-        assert not np.isnan(transformed).any()
+        # Handle both numeric and object arrays
+        if transformed.dtype.kind in ["f", "i"]:  # numeric types
+            assert not np.isnan(transformed).any()
+        else:  # object arrays
+            # Check for None, NaN, or empty string values
+            null_mask = np.array(
+                [pd.isna(x) if pd.isna(x) else False for x in transformed.flat]
+            )
+            assert not null_mask.any()
 
     def test_preprocessing_pipeline(self):
         """Test complete preprocessing pipeline."""
