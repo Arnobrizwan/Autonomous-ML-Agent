@@ -175,7 +175,7 @@ class ModelRegistry:
 
 def get_model_factory(
     model_type: ModelType, task_type: TaskType, params: Optional[Dict[str, Any]] = None
-) -> BaseEstimator:
+) -> Any:
     """
     Create model instance with given parameters.
 

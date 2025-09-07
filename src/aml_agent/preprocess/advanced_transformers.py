@@ -415,7 +415,7 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
                     index=X_numeric.index,
                 )
             else:
-                X_numeric = imputer.fit_transform(X_numeric)
+                X_numeric = np.asarray(imputer.fit_transform(X_numeric))
 
         if self.poly_features is not None:
             self.poly_features.fit(X_numeric)
@@ -423,7 +423,7 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
             # Generate feature names
             self.feature_names_ = self.poly_features.get_feature_names_out(
                 numeric_columns
-            )
+            ).tolist()
 
         # Limit features if too many
         if len(self.feature_names_) > self.max_features:
@@ -484,7 +484,7 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
                     index=X_numeric.index,
                 )
             else:
-                X_numeric = imputer.fit_transform(X_numeric)
+                X_numeric = np.asarray(imputer.fit_transform(X_numeric))
 
         if self.poly_features is not None:
             poly_features = self.poly_features.transform(X_numeric)
@@ -1076,6 +1076,6 @@ class TextFeatureExtractor(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+    def fit_transform(self, X, y=None) -> pd.DataFrame:
         """Fit and transform in one step."""
         return self.fit(X, y).transform(X)

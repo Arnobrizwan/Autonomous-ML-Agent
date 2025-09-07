@@ -5,7 +5,7 @@ Command-line interface for the Autonomous ML Agent.
 import json
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 import typer
@@ -83,13 +83,13 @@ async def run(
 
         from ..utils import load_data
 
-        data = load_data(config_obj.data_path)
+        loaded_data: Any = load_data(config_obj.data_path)
 
         # Ensure data is a DataFrame
-        if hasattr(data, "shape"):
-            console.print(f"Data loaded: {data.shape[0]} rows, {data.shape[1]} columns")
-        elif hasattr(data, "__len__"):
-            console.print(f"Data loaded: {len(data)} rows")
+        if hasattr(loaded_data, "shape"):
+            console.print(f"Data loaded: {loaded_data.shape[0]} rows, {loaded_data.shape[1]} columns")
+        elif hasattr(loaded_data, "__len__"):
+            console.print(f"Data loaded: {len(loaded_data)} rows")
         else:
             console.print("Data loaded successfully")
 
@@ -107,15 +107,15 @@ async def run(
 
             from ..agent.loop import run_autonomous_ml
 
-            if isinstance(data, pd.DataFrame):
+            if isinstance(loaded_data, pd.DataFrame):
                 X = (
-                    data.drop(columns=[config_obj.target])
-                    if config_obj.target in data.columns
-                    else data
+                    loaded_data.drop(columns=[config_obj.target])
+                    if config_obj.target in loaded_data.columns
+                    else loaded_data
                 )
                 y = (
-                    data[config_obj.target]
-                    if config_obj.target in data.columns
+                    loaded_data[config_obj.target]
+                    if config_obj.target in loaded_data.columns
                     else None
                 )
             else:

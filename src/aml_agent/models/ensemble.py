@@ -76,7 +76,7 @@ class EnsembleBuilder:
         """Create single model from trial result."""
         from .registries import get_model_factory
 
-        model = get_model_factory(
+        model: Any = get_model_factory(
             trial_result.model_type, self.task_type, trial_result.params
         )
         return model
@@ -89,18 +89,20 @@ class EnsembleBuilder:
 
         estimators = []
         for i, result in enumerate(trial_results):
-            model = get_model_factory(result.model_type, self.task_type, result.params)
+            model: Any = get_model_factory(
+                result.model_type, self.task_type, result.params
+            )
             estimators.append((f"model_{i}", model))
 
         if self.task_type == TaskType.CLASSIFICATION:
-            ensemble = VotingClassifier(
+            voting_ensemble: Any = VotingClassifier(
                 estimators=estimators,
                 voting="soft" if self._supports_proba(estimators) else "hard",
             )
         else:
-            ensemble = VotingRegressor(estimators=estimators)
+            voting_ensemble: Any = VotingRegressor(estimators=estimators)
 
-        return ensemble
+        return voting_ensemble
 
     def _create_stacking_ensemble(
         self, trial_results: List[TrialResult], X: pd.DataFrame, y: pd.Series
@@ -112,28 +114,30 @@ class EnsembleBuilder:
 
         estimators = []
         for i, result in enumerate(trial_results):
-            model = get_model_factory(result.model_type, self.task_type, result.params)
+            model: Any = get_model_factory(
+                result.model_type, self.task_type, result.params
+            )
             estimators.append((f"model_{i}", model))
 
         # Choose meta-learner
         if self.task_type == TaskType.CLASSIFICATION:
-            meta_learner = LogisticRegression(random_state=self.random_seed)
-            ensemble = StackingClassifier(
+            stacking_meta_learner: Any = LogisticRegression(
+                random_state=self.random_seed
+            )
+            stacking_ensemble: Any = StackingClassifier(
                 estimators=estimators,
-                final_estimator=meta_learner,
+                final_estimator=stacking_meta_learner,
                 cv=5,
-                random_state=self.random_seed,
             )
         else:
-            meta_learner = LinearRegression()
-            ensemble = StackingRegressor(
+            stacking_meta_learner: Any = LinearRegression()
+            stacking_ensemble: Any = StackingRegressor(
                 estimators=estimators,
-                final_estimator=meta_learner,
+                final_estimator=stacking_meta_learner,
                 cv=5,
-                random_state=self.random_seed,
             )
 
-        return ensemble
+        return stacking_ensemble
 
     def _create_blending_ensemble(
         self, trial_results: List[TrialResult]
@@ -146,7 +150,9 @@ class EnsembleBuilder:
         weights: List[float] = []
 
         for result in trial_results:
-            model = get_model_factory(result.model_type, self.task_type, result.params)
+            model: Any = get_model_factory(
+                result.model_type, self.task_type, result.params
+            )
             models.append(model)
             weights.append(result.score)  # Use score as weight
 
@@ -266,7 +272,9 @@ class AdvancedEnsemble:
 
         models = []
         for result in top_results:
-            model = get_model_factory(result.model_type, self.task_type, result.params)
+            model: Any = get_model_factory(
+                result.model_type, self.task_type, result.params
+            )
             models.append(model)
 
         if method == "performance_weighted":
@@ -310,14 +318,14 @@ class AdvancedEnsemble:
             for j, pred2 in enumerate(predictions):
                 if i != j:
                     if self.task_type == TaskType.CLASSIFICATION:
-                        diversity += 1 - accuracy_score(pred1, pred2)
+                        diversity += float(1 - accuracy_score(pred1, pred2))
                     else:
-                        diversity += 1 - r2_score(pred1, pred2)
+                        diversity += float(1 - r2_score(pred1, pred2))
             diversity_scores.append(diversity)
 
         # Normalize weights
         weights = np.array(diversity_scores)
-        weights = weights / weights.sum()
+        weights = weights / float(weights.sum())
 
         return WeightedEnsemble(models, weights, self.task_type)
 

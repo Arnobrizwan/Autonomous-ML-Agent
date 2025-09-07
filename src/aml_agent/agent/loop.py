@@ -147,7 +147,7 @@ class AgentLoop:
             task_type = self.config.task_type
 
         # Profile dataset
-        target_name = y.name if y is not None and hasattr(y, "name") else "target"
+        target_name = str(y.name) if y is not None and hasattr(y, "name") else "target"
         dataset_profile = profile_dataset(X, target_name)
         self.metadata.dataset_profile = dataset_profile
 
@@ -314,7 +314,7 @@ class AgentLoop:
                 logger.warning("Trainer not initialized, skipping ensemble creation")
                 return
 
-            self.ensemble_model = ensemble_builder.create_ensemble(
+            self.ensemble_model: Any = ensemble_builder.create_ensemble(
                 trial_results=self.trial_results,
                 top_k=plan.ensemble_strategy.top_k,
                 method=plan.ensemble_strategy.method,
@@ -382,7 +382,7 @@ class AgentLoop:
             validated_params = validate_model_params(
                 best_result.model_type, best_result.params
             )
-            best_model = get_model_factory(
+            best_model: Any = get_model_factory(
                 best_result.model_type, task_type, validated_params
             )
             best_model.fit(X_processed, y_processed)
@@ -397,7 +397,11 @@ class AgentLoop:
             model_card = card_generator.generate_model_card(
                 model=best_model,
                 X=X_processed,
-                y=y_processed,
+                y=(
+                    y_processed
+                    if y_processed is not None
+                    else pd.Series([], dtype=float)
+                ),
             )
             with open(self.artifacts_dir / "model_card.md", "w") as f:
                 f.write(model_card)

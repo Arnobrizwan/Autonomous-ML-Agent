@@ -111,7 +111,7 @@ class ModelTrainer:
             params = validate_model_params(model_type, params)
 
         # Create model
-        model = get_model_factory(model_type, self.task_type, params)
+        model: Any = get_model_factory(model_type, self.task_type, params)
 
         # Train model
         start_time = time.time()
@@ -151,16 +151,18 @@ class ModelTrainer:
         """Evaluate model with cross-validation."""
         # Choose CV strategy
         if self.task_type == TaskType.CLASSIFICATION:
-            cv = StratifiedKFold(
+            cv_strategy: Any = StratifiedKFold(
                 n_splits=self.cv_folds, shuffle=True, random_state=self.random_seed
             )
         else:
-            cv = KFold(
+            cv_strategy: Any = KFold(
                 n_splits=self.cv_folds, shuffle=True, random_state=self.random_seed
             )
 
         # Perform cross-validation
-        cv_scores = cross_val_score(model, X, y, cv=cv, scoring=self.scorer, n_jobs=-1)
+        cv_scores = cross_val_score(
+            model, X, y, cv=cv_strategy, scoring=self.scorer, n_jobs=-1
+        )
 
         # Calculate metrics
         cv_mean = np.mean(cv_scores)
@@ -263,7 +265,7 @@ class ModelTrainer:
         params = validate_model_params(model_type, params)
 
         # Create and train model
-        model = get_model_factory(model_type, self.task_type, params)
+        model: Any = get_model_factory(model_type, self.task_type, params)
 
         # Evaluate with CV
         start_time = time.time()

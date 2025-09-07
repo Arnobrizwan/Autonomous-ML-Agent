@@ -2,7 +2,7 @@
 Main preprocessing pipeline for the Autonomous ML Agent.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -39,7 +39,7 @@ class PreprocessingPipeline:
     ):
         self.config = config or PreprocessingConfig()
         self.use_advanced_features = use_advanced_features
-        self.pipeline = None
+        self.pipeline: Optional[Any] = None
         self.type_detector = TypeDetector()
         self.missing_detector = MissingValueDetector()
         self.outlier_detector = OutlierDetector(self.config.outlier_method)
@@ -205,7 +205,7 @@ class PreprocessingPipeline:
 
     def _build_pipeline(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> None:
         """Build the preprocessing pipeline."""
-        transformers = []
+        transformers: List[Tuple[str, Any, List[str]]] = []
 
         # Get column types
         numeric_columns = self.type_detector.get_columns_by_type("numeric")
