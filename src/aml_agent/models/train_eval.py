@@ -221,7 +221,9 @@ class ModelTrainer:
             "score": score,
         }
 
-    def _sample_hyperparameters(self, trial, search_space: Dict[str, Any]) -> Dict[str, Any]:
+    def _sample_hyperparameters(
+        self, trial, search_space: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Sample hyperparameters from search space."""
         import optuna
 
@@ -245,7 +247,12 @@ class ModelTrainer:
         return params
 
     def _evaluate_trial(
-        self, trial, model_type: ModelType, X: pd.DataFrame, y: pd.Series, search_space: Dict[str, Any]
+        self,
+        trial,
+        model_type: ModelType,
+        X: pd.DataFrame,
+        y: pd.Series,
+        search_space: Dict[str, Any],
     ) -> float:
         """Evaluate a single trial."""
 
@@ -277,12 +284,16 @@ class ModelTrainer:
             # Handle model-specific errors gracefully
             error_msg = str(e)
             if "constant" in error_msg.lower() or "ignored" in error_msg.lower():
-                logger.warning(f"Model {model_type} failed due to constant features: {error_msg}")
+                logger.warning(
+                    f"Model {model_type} failed due to constant features: {error_msg}"
+                )
                 return 0.0
             else:
                 raise e
 
-    def _create_trial_result(self, trial, trial_id: int, model_type: ModelType, status: str) -> TrialResult:
+    def _create_trial_result(
+        self, trial, trial_id: int, model_type: ModelType, status: str
+    ) -> TrialResult:
         """Create a TrialResult from a trial."""
         if status == "completed":
             return TrialResult(
@@ -367,7 +378,11 @@ class ModelTrainer:
         # Convert trials to results
         results = []
         for i, trial in enumerate(study.trials):
-            status = "completed" if trial.state == optuna.trial.TrialState.COMPLETE else "failed"
+            status = (
+                "completed"
+                if trial.state == optuna.trial.TrialState.COMPLETE
+                else "failed"
+            )
             result = self._create_trial_result(trial, i, model_type, status)
             results.append(result)
 

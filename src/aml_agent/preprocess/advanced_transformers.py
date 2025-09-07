@@ -647,7 +647,9 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
             return le.fit_transform(y)
         return y
 
-    def _get_data_subset(self, X: pd.DataFrame, numeric_columns: List[str]) -> np.ndarray:
+    def _get_data_subset(
+        self, X: pd.DataFrame, numeric_columns: List[str]
+    ) -> np.ndarray:
         """Get numeric data subset from input."""
         if hasattr(X, "iloc"):
             return X[numeric_columns].values
@@ -655,14 +657,21 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
             numeric_indices = list(range(len(numeric_columns)))
             return X[:, numeric_indices]
 
-    def _select_features_by_scores(self, scores: np.ndarray, numeric_columns: List[str]) -> List[str]:
+    def _select_features_by_scores(
+        self, scores: np.ndarray, numeric_columns: List[str]
+    ) -> List[str]:
         """Select top k features based on scores."""
-        top_indices = np.argsort(scores)[-self.k:]
+        top_indices = np.argsort(scores)[-self.k :]
         return [numeric_columns[i] for i in top_indices]
 
-    def _apply_mutual_info_selection(self, X: pd.DataFrame, y: pd.Series, numeric_columns: List[str]) -> List[str]:
+    def _apply_mutual_info_selection(
+        self, X: pd.DataFrame, y: pd.Series, numeric_columns: List[str]
+    ) -> List[str]:
         """Apply mutual information feature selection."""
-        from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
+        from sklearn.feature_selection import (
+            mutual_info_classif,
+            mutual_info_regression,
+        )
 
         y_encoded = self._encode_target(y)
         data_subset = self._get_data_subset(X, numeric_columns)
@@ -675,7 +684,9 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
 
         return self._select_features_by_scores(scores, numeric_columns)
 
-    def _apply_f_score_selection(self, X: pd.DataFrame, y: pd.Series, numeric_columns: List[str]) -> List[str]:
+    def _apply_f_score_selection(
+        self, X: pd.DataFrame, y: pd.Series, numeric_columns: List[str]
+    ) -> List[str]:
         """Apply F-score feature selection."""
         from sklearn.feature_selection import f_classif, f_regression
 
@@ -690,7 +701,9 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
 
         return self._select_features_by_scores(scores, numeric_columns)
 
-    def _apply_variance_selection(self, X: pd.DataFrame, numeric_columns: List[str]) -> List[str]:
+    def _apply_variance_selection(
+        self, X: pd.DataFrame, numeric_columns: List[str]
+    ) -> List[str]:
         """Apply variance-based feature selection."""
         from sklearn.feature_selection import VarianceThreshold
 
@@ -704,15 +717,15 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
             if selected
         ]
 
-    def _apply_correlation_selection(self, X: pd.DataFrame, numeric_columns: List[str]) -> List[str]:
+    def _apply_correlation_selection(
+        self, X: pd.DataFrame, numeric_columns: List[str]
+    ) -> List[str]:
         """Apply correlation-based feature selection."""
         if hasattr(X, "iloc"):
             corr_matrix = X[numeric_columns].corr().abs()
         else:
             # For numpy arrays, convert to DataFrame first
-            X_df = pd.DataFrame(
-                X[:, : len(numeric_columns)], columns=numeric_columns
-            )
+            X_df = pd.DataFrame(X[:, : len(numeric_columns)], columns=numeric_columns)
             corr_matrix = X_df.corr().abs()
 
         upper_tri = corr_matrix.where(
@@ -742,13 +755,19 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
 
         # Apply the selected method
         if self.method == "mutual_info":
-            self.selected_features_ = self._apply_mutual_info_selection(X, y, numeric_columns)
+            self.selected_features_ = self._apply_mutual_info_selection(
+                X, y, numeric_columns
+            )
         elif self.method == "f_score":
-            self.selected_features_ = self._apply_f_score_selection(X, y, numeric_columns)
+            self.selected_features_ = self._apply_f_score_selection(
+                X, y, numeric_columns
+            )
         elif self.method == "variance":
             self.selected_features_ = self._apply_variance_selection(X, numeric_columns)
         elif self.method == "correlation":
-            self.selected_features_ = self._apply_correlation_selection(X, numeric_columns)
+            self.selected_features_ = self._apply_correlation_selection(
+                X, numeric_columns
+            )
 
         # Limit to k features if more than k selected
         if len(self.selected_features_) > self.k:
@@ -868,7 +887,9 @@ class AdvancedPreprocessingPipeline(BaseEstimator, TransformerMixin):
         df.columns = unique_cols
         return df
 
-    def _apply_transformer_if_ready(self, transformer, data: pd.DataFrame) -> pd.DataFrame:
+    def _apply_transformer_if_ready(
+        self, transformer, data: pd.DataFrame
+    ) -> pd.DataFrame:
         """Apply transformer if it's ready and fitted."""
         if (
             transformer is not None
