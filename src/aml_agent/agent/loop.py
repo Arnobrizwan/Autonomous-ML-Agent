@@ -154,11 +154,17 @@ class AgentLoop:
         from ..preprocess.config import PreprocessingConfig
         from ..preprocess.pipeline import PreprocessingPipeline
 
-        preprocessing_config = (
-            PreprocessingConfig.from_dict(self.config.preprocessing)
-            if isinstance(self.config.preprocessing, dict)
-            else self.config.preprocessing
-        )
+        # Convert PreprocessingSettings to PreprocessingConfig
+        if hasattr(self.config.preprocessing, "model_dump"):
+            # It's a Pydantic model, convert to dict then to PreprocessingConfig
+            preprocessing_dict = self.config.preprocessing.model_dump()
+            preprocessing_config = PreprocessingConfig.from_dict(preprocessing_dict)
+        elif isinstance(self.config.preprocessing, dict):
+            preprocessing_config = PreprocessingConfig.from_dict(
+                self.config.preprocessing
+            )
+        else:
+            preprocessing_config = self.config.preprocessing
         self.preprocessor = PreprocessingPipeline(preprocessing_config)
 
         # Fit and transform data
