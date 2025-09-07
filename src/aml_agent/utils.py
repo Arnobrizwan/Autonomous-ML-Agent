@@ -111,7 +111,7 @@ def calculate_metrics(
     y_pred: np.ndarray,
     y_prob: Optional[np.ndarray] = None,
     task_type: TaskType = TaskType.CLASSIFICATION,
-) -> Dict[str, float]:
+) -> Dict[str, Any]:
     """
     Calculate comprehensive metrics for model evaluation.
 
@@ -130,16 +130,20 @@ def calculate_metrics(
         # Classification metrics
         metrics["accuracy"] = accuracy_score(y_true, y_pred)
         metrics["balanced_accuracy"] = balanced_accuracy_score(y_true, y_pred)
-        metrics["precision"] = precision_score(
-            y_true, y_pred, average="weighted", zero_division=0
+        metrics["precision"] = float(
+            precision_score(y_true, y_pred, average="weighted", zero_division=0)
         )
-        metrics["recall"] = recall_score(
-            y_true, y_pred, average="weighted", zero_division=0
+        metrics["recall"] = float(
+            recall_score(y_true, y_pred, average="weighted", zero_division=0)
         )
-        metrics["f1"] = f1_score(y_true, y_pred, average="weighted", zero_division=0)
-        metrics["f1_macro"] = f1_score(y_true, y_pred, average="macro", zero_division=0)
-        metrics["f1_weighted"] = f1_score(
-            y_true, y_pred, average="weighted", zero_division=0
+        metrics["f1"] = float(
+            f1_score(y_true, y_pred, average="weighted", zero_division=0)
+        )
+        metrics["f1_macro"] = float(
+            f1_score(y_true, y_pred, average="macro", zero_division=0)
+        )
+        metrics["f1_weighted"] = float(
+            f1_score(y_true, y_pred, average="weighted", zero_division=0)
         )
 
         # AUC if probabilities available

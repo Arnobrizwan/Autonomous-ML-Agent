@@ -198,7 +198,8 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
             .fillna(0)
             .values,
         }
-        return features
+        # Convert to proper numpy arrays
+        return {k: np.asarray(v) for k, v in features.items()}
 
 
 class TextEmbeddingTransformer(BaseEstimator, TransformerMixin):
@@ -394,7 +395,7 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
         else:
             # For numpy arrays, use integer indices
             numeric_indices = list(range(len(numeric_columns)))
-            X_numeric = X[:, numeric_indices]
+            X_numeric = pd.DataFrame(X[:, numeric_indices], columns=numeric_columns)
 
         # Handle NaN values before polynomial features
         if hasattr(X_numeric, "isnull") and X_numeric.isnull().any().any():
@@ -462,7 +463,7 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
         else:
             # For numpy arrays, use integer indices
             numeric_indices = list(range(len(numeric_columns)))
-            X_numeric = X[:, numeric_indices]
+            X_numeric = pd.DataFrame(X[:, numeric_indices], columns=numeric_columns)
 
         # Handle NaN values before polynomial features
         if hasattr(X_numeric, "isnull") and X_numeric.isnull().any().any():
@@ -568,7 +569,7 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
         else:
             # For numpy arrays, use integer indices
             numeric_indices = list(range(len(numeric_columns)))
-            X_numeric = X[:, numeric_indices]
+            X_numeric = pd.DataFrame(X[:, numeric_indices], columns=numeric_columns)
         if self.outlier_detector is not None:
             outlier_labels = self.outlier_detector.fit_predict(X_numeric)
         else:
@@ -604,7 +605,7 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
         else:
             # For numpy arrays, use integer indices
             numeric_indices = list(range(len(numeric_columns)))
-            X_numeric = X[:, numeric_indices]
+            X_numeric = pd.DataFrame(X[:, numeric_indices], columns=numeric_columns)
 
         return X_numeric, numeric_columns
 
@@ -693,7 +694,7 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
         if y.dtype == "object":
             le = LabelEncoder()
             return le.fit_transform(y)
-        return y
+        return y.values
 
     def _get_data_subset(
         self, X: pd.DataFrame, numeric_columns: List[str]
@@ -703,7 +704,7 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
             return X[numeric_columns].values
         else:
             numeric_indices = list(range(len(numeric_columns)))
-            return X[:, numeric_indices]
+            return np.asarray(X[:, numeric_indices])
 
     def _select_features_by_scores(
         self, scores: np.ndarray, numeric_columns: List[str]
@@ -802,7 +803,10 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
             return self
 
         # Apply the selected method
-        if self.method == "mutual_info":
+        if y is None:
+            # If no target, use variance selection
+            self.selected_features_ = self._apply_variance_selection(X, numeric_columns)
+        elif self.method == "mutual_info":
             self.selected_features_ = self._apply_mutual_info_selection(
                 X, y, numeric_columns
             )

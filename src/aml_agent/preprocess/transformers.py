@@ -109,7 +109,7 @@ class ImputationTransformer(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
         """Fit and transform in one step."""
         return self.fit(X, y).transform(X)
 
@@ -203,7 +203,7 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
         """Fit and transform in one step."""
         return self.fit(X, y).transform(X)
 
@@ -254,7 +254,7 @@ class DateTimeExpander(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
         """Fit and transform in one step."""
         return self.fit(X, y).transform(X)
 
@@ -305,7 +305,7 @@ class FeatureScaler(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
         """Fit and transform in one step."""
         return self.fit(X, y).transform(X)
 
@@ -359,7 +359,7 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
         """Fit and transform in one step."""
         return self.fit(X, y).transform(X)
 
@@ -440,7 +440,7 @@ class TextFeatureExtractor(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
         """Fit and transform in one step."""
         return self.fit(X, y).transform(X)
 
@@ -511,6 +511,6 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
         """Fit and transform in one step."""
         return self.fit(X, y).transform(X)

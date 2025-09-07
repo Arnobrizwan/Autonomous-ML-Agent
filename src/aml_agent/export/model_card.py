@@ -51,7 +51,10 @@ class ModelCardGenerator:
         """
         # Generate predictions if not provided
         if y_pred is None:
-            y_pred = model.predict(X)
+            if hasattr(model, "predict"):
+                y_pred = model.predict(X)
+            else:
+                raise ValueError("Model does not have predict method")
 
         if y_prob is None and hasattr(model, "predict_proba"):
             y_prob = pd.DataFrame(model.predict_proba(X))

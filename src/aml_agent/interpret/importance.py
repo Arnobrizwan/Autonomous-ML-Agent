@@ -41,7 +41,7 @@ class FeatureImportanceAnalyzer:
             method = self._select_best_method(model)
 
         if method == "builtin":
-            return self._get_builtin_importance(model, X.columns)
+            return self._get_builtin_importance(model, list(X.columns))
         elif method == "permutation":
             return self._get_permutation_importance(model, X, y)
         else:
@@ -113,9 +113,24 @@ class FeatureImportanceAnalyzer:
                 n_jobs=-1,
             )
 
+            # Handle union type for perm_importance
+            if hasattr(perm_importance, "importances_mean"):
+                scores = perm_importance.importances_mean
+                std = perm_importance.importances_std
+            elif isinstance(perm_importance, dict):
+                # Fallback if it's a dict
+                scores = perm_importance.get("importances_mean", np.array([]))
+                std = perm_importance.get("importances_std", np.array([]))
+            else:
+                # Default fallback
+                scores = np.array([])
+                std = np.array([])
+
             importance_dict = {
-                "scores": perm_importance.importances_mean.tolist(),
-                "std": perm_importance.importances_std.tolist(),
+                "scores": (
+                    scores.tolist() if hasattr(scores, "tolist") else list(scores)
+                ),
+                "std": std.tolist() if hasattr(std, "tolist") else list(std),
                 "feature_names": X.columns.tolist(),
                 "type": "permutation_importance",
                 "method": "permutation",
@@ -123,12 +138,12 @@ class FeatureImportanceAnalyzer:
             }
 
             # Sort by importance
-            sorted_indices = np.argsort(perm_importance.importances_mean)[::-1]
+            sorted_indices = np.argsort(scores)[::-1]
             importance_dict["sorted_features"] = [
                 {
                     "feature": X.columns[i],
-                    "importance": float(perm_importance.importances_mean[i]),
-                    "std": float(perm_importance.importances_std[i]),
+                    "importance": float(scores[i]),
+                    "std": float(std[i]),
                 }
                 for i in sorted_indices
             ]
@@ -138,7 +153,7 @@ class FeatureImportanceAnalyzer:
         except Exception as e:
             logger.warning(f"Permutation importance failed: {e}")
             # Fallback to random importance
-            return self._get_random_importance(X.columns)
+            return self._get_random_importance(list(X.columns))
 
     def _get_random_importance(self, feature_names: List[str]) -> Dict[str, Any]:
         """Fallback random importance when other methods fail."""

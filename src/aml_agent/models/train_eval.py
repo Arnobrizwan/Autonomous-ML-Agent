@@ -175,7 +175,9 @@ class ModelTrainer:
         if hasattr(model, "predict_proba"):
             y_prob = model.predict_proba(X)
 
-        metrics = calculate_metrics(y.values, y_pred, y_prob, self.task_type)
+        metrics = calculate_metrics(
+            np.asarray(y.values), y_pred, y_prob, self.task_type
+        )
 
         return {
             "cv_scores": cv_scores.tolist(),

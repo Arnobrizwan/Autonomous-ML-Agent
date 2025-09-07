@@ -160,23 +160,25 @@ class MetricsCollector:
         # Basic classification metrics
         metrics["accuracy"] = accuracy_score(y_true, y_pred)
         metrics["balanced_accuracy"] = balanced_accuracy_score(y_true, y_pred)
-        metrics["precision_weighted"] = precision_score(
-            y_true, y_pred, average="weighted", zero_division=0
+        metrics["precision_weighted"] = float(
+            precision_score(y_true, y_pred, average="weighted", zero_division=0)
         )
-        metrics["recall_weighted"] = recall_score(
-            y_true, y_pred, average="weighted", zero_division=0
+        metrics["recall_weighted"] = float(
+            recall_score(y_true, y_pred, average="weighted", zero_division=0)
         )
-        metrics["f1_weighted"] = f1_score(
-            y_true, y_pred, average="weighted", zero_division=0
+        metrics["f1_weighted"] = float(
+            f1_score(y_true, y_pred, average="weighted", zero_division=0)
         )
 
         # Binary classification metrics
         if len(y_true.unique()) == 2:
-            metrics["precision_binary"] = precision_score(
-                y_true, y_pred, zero_division=0
+            metrics["precision_binary"] = float(
+                precision_score(y_true, y_pred, zero_division=0)
             )
-            metrics["recall_binary"] = recall_score(y_true, y_pred, zero_division=0)
-            metrics["f1_binary"] = f1_score(y_true, y_pred, zero_division=0)
+            metrics["recall_binary"] = float(
+                recall_score(y_true, y_pred, zero_division=0)
+            )
+            metrics["f1_binary"] = float(f1_score(y_true, y_pred, zero_division=0))
 
         # Probability-based metrics
         if y_prob is not None:
@@ -196,8 +198,10 @@ class MetricsCollector:
                 logger.warning(f"Failed to calculate ROC AUC: {e}")
 
         # Class distribution
-        metrics["class_distribution_true"] = y_true.value_counts().to_dict()
-        metrics["class_distribution_pred"] = pd.Series(y_pred).value_counts().to_dict()
+        metrics["class_distribution_true"] = float(len(y_true.value_counts().to_dict()))
+        metrics["class_distribution_pred"] = float(
+            len(pd.Series(y_pred).value_counts().to_dict())
+        )
 
         return metrics
 
@@ -254,7 +258,10 @@ class MetricsCollector:
             Dictionary with training metrics
         """
         # Get predictions
-        y_pred = model.predict(X)
+        if hasattr(model, "predict"):
+            y_pred = model.predict(X)
+        else:
+            raise ValueError("Model does not have predict method")
         y_prob = None
         if hasattr(model, "predict_proba"):
             y_prob = pd.DataFrame(model.predict_proba(X))

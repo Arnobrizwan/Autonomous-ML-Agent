@@ -78,10 +78,10 @@ class ModelExplainer:
         # Get feature importance
         try:
             importance = self.importance_analyzer.get_feature_importance(model, X, y)
-            explanation["feature_importance"] = importance
+            explanation["feature_importance"] = str(importance)
         except Exception as e:
             logger.warning(f"Failed to get feature importance: {e}")
-            explanation["feature_importance"] = {"error": str(e)}
+            explanation["feature_importance"] = str({"error": str(e)})
 
         # Generate specific explanations based on type
         if explanation_type == "shap" and SHAP_AVAILABLE:
@@ -208,7 +208,10 @@ class ModelExplainer:
             importance = self.importance_analyzer.get_feature_importance(model, X, y)
 
             # Generate prediction summary
-            predictions = model.predict(X)
+            if hasattr(model, "predict"):
+                predictions = model.predict(X)
+            else:
+                raise ValueError("Model does not have predict method")
             prediction_summary = {
                 "mean_prediction": float(np.mean(predictions)),
                 "std_prediction": float(np.std(predictions)),
@@ -280,7 +283,10 @@ class ModelExplainer:
             raise ValueError(f"Instance index {instance_idx} out of range")
 
         instance = X.iloc[instance_idx : instance_idx + 1]
-        prediction = model.predict(instance)[0]
+        if hasattr(model, "predict"):
+            prediction = model.predict(instance)[0]
+        else:
+            raise ValueError("Model does not have predict method")
 
         explanation = {
             "instance_idx": instance_idx,

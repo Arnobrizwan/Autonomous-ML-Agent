@@ -147,7 +147,8 @@ class AgentLoop:
             task_type = self.config.task_type
 
         # Profile dataset
-        dataset_profile = profile_dataset(X, y.name if hasattr(y, "name") else "target")
+        target_name = y.name if y is not None and hasattr(y, "name") else "target"
+        dataset_profile = profile_dataset(X, target_name)
         self.metadata.dataset_profile = dataset_profile
 
         # Create preprocessing pipeline
@@ -337,9 +338,9 @@ class AgentLoop:
     def _export_results(
         self,
         X: pd.DataFrame,
-        y: pd.Series,
+        y: Optional[pd.Series],
         X_processed: pd.DataFrame,
-        y_processed: pd.Series,
+        y_processed: Optional[pd.Series],
         task_type: TaskType,
     ):
         """Export pipeline results."""

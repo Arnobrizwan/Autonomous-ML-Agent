@@ -182,7 +182,12 @@ async def predict_batch(request: BatchPredictionRequest):
         data = pd.DataFrame(request.data)
 
         # Make predictions
-        predictions = loaded_pipeline.predict(data).tolist()
+        pred_result = loaded_pipeline.predict(data)
+        predictions = (
+            pred_result.tolist()
+            if hasattr(pred_result, "tolist")
+            else list(pred_result)
+        )
 
         # Get probabilities if available
         probabilities = None
@@ -228,7 +233,12 @@ async def predict_file(file: UploadFile = File(...)):
         data = pd.read_csv(pd.io.common.StringIO(content.decode("utf-8")))
 
         # Make predictions
-        predictions = loaded_pipeline.predict(data).tolist()
+        pred_result = loaded_pipeline.predict(data)
+        predictions = (
+            pred_result.tolist()
+            if hasattr(pred_result, "tolist")
+            else list(pred_result)
+        )
 
         # Get probabilities if available
         probabilities = None

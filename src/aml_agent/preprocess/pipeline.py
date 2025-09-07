@@ -330,7 +330,7 @@ class PreprocessingPipeline:
         """Transform target variable if needed."""
         if self.target_encoder is not None:
             return self.target_encoder.transform(y)
-        return y.values
+        return np.asarray(y.values)
 
 
 def create_preprocessing_pipeline(

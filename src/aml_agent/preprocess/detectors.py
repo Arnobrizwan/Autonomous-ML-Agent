@@ -98,7 +98,9 @@ class TypeDetector:
     def _is_categorical(self, series: pd.Series) -> bool:
         """Check if series is categorical."""
         # Check if already categorical
-        if pd.api.types.is_categorical_dtype(series):
+        if hasattr(
+            pd.api.types, "is_categorical_dtype"
+        ) and pd.api.types.is_categorical_dtype(series):
             return True
 
         # Check for object type with limited unique values
@@ -274,7 +276,8 @@ class OutlierDetector:
             # Reshape for sklearn
             # X = ...  # unused
             iso_forest = IsolationForest(contamination=0.1, random_state=42)
-            outlier_labels = iso_forest.fit_predict(series.values.reshape(-1, 1))
+            values = np.asarray(series.values)
+            outlier_labels = iso_forest.fit_predict(values.reshape(-1, 1))
             outliers = series[outlier_labels == -1]
             return outliers.index.tolist()
         except Exception as e:
