@@ -372,7 +372,7 @@ class TestSmoke:
         assert app is not None
         assert hasattr(app, "routes")
 
-    def test_end_to_end_smoke(self):
+    async def test_end_to_end_smoke(self):
         """Test end-to-end pipeline with minimal configuration."""
         # Create sample data
         data = create_sample_data(
@@ -390,7 +390,7 @@ class TestSmoke:
 
         # Run pipeline
         try:
-            results = run_autonomous_ml(
+            results = await run_autonomous_ml(
                 config, data.drop(columns=["target"]), data["target"]
             )
 

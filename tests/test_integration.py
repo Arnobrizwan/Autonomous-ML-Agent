@@ -31,7 +31,7 @@ class TestIntegration:
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_end_to_end_classification(self):
+    async def test_end_to_end_classification(self):
         """Test complete classification pipeline."""
         # Create sample data
         data = create_sample_data(
@@ -49,7 +49,7 @@ class TestIntegration:
         config.llm.enabled = False  # Disable LLM for faster testing
 
         # Run pipeline
-        results = run_autonomous_ml(config, X, y)
+        results = await run_autonomous_ml(config, X, y)
 
         # Verify results
         assert results["status"] == "completed"
@@ -68,7 +68,7 @@ class TestIntegration:
         assert (artifacts_path / "metadata.json").exists()
         assert (artifacts_path / "leaderboard.csv").exists()
 
-    def test_end_to_end_regression(self):
+    async def test_end_to_end_regression(self):
         """Test complete regression pipeline."""
         # Create sample data
         data = create_sample_data(
@@ -86,7 +86,7 @@ class TestIntegration:
         config.llm.enabled = False
 
         # Run pipeline
-        results = run_autonomous_ml(config, X, y)
+        results = await run_autonomous_ml(config, X, y)
 
         # Verify results
         assert results["status"] == "completed"
@@ -94,7 +94,7 @@ class TestIntegration:
         assert "best_model" in results
         assert "total_trials" in results
 
-    def test_pipeline_with_missing_data(self):
+    async def test_pipeline_with_missing_data(self):
         """Test pipeline with missing data."""
         # Create data with missing values
         data = create_sample_data(
@@ -116,12 +116,12 @@ class TestIntegration:
         config.llm.enabled = False
 
         # Run pipeline
-        results = run_autonomous_ml(config, X, y)
+        results = await run_autonomous_ml(config, X, y)
 
         # Verify results
         assert results["status"] == "completed"
 
-    def test_pipeline_with_categorical_data(self):
+    async def test_pipeline_with_categorical_data(self):
         """Test pipeline with categorical data."""
         # Create data with categorical features
         np.random.seed(42)
@@ -150,12 +150,12 @@ class TestIntegration:
         config.preprocessing.encode_categorical = "label"
 
         # Run pipeline
-        results = run_autonomous_ml(config, X, y)
+        results = await run_autonomous_ml(config, X, y)
 
         # Verify results
         assert results["status"] == "completed"
 
-    def test_ensemble_creation(self):
+    async def test_ensemble_creation(self):
         """Test ensemble model creation."""
         # Create sample data
         data = create_sample_data(
@@ -174,7 +174,7 @@ class TestIntegration:
         config.llm.enabled = False
 
         # Run pipeline
-        results = run_autonomous_ml(config, X, y)
+        results = await run_autonomous_ml(config, X, y)
 
         # Verify results
         assert results["status"] == "completed"
@@ -182,7 +182,7 @@ class TestIntegration:
         # Check for ensemble model
         # Note: Ensemble creation depends on having multiple successful models
 
-    def test_model_export_and_loading(self):
+    async def test_model_export_and_loading(self):
         """Test model export and loading."""
         # Create sample data
         data = create_sample_data(
@@ -200,7 +200,7 @@ class TestIntegration:
         config.llm.enabled = False
 
         # Run pipeline
-        results = run_autonomous_ml(config, X, y)
+        results = await run_autonomous_ml(config, X, y)
 
         # Verify artifacts exist
         artifacts_path = Path(results["artifacts_dir"])
@@ -218,7 +218,7 @@ class TestIntegration:
         assert len(predictions) == len(X)
         assert all(pred in [0, 1] for pred in predictions)
 
-    def test_error_handling(self):
+    async def test_error_handling(self):
         """Test error handling in pipeline."""
         # Create invalid data (all NaN)
         X = pd.DataFrame({"feature_1": [np.nan] * 100, "feature_2": [np.nan] * 100})
@@ -233,14 +233,14 @@ class TestIntegration:
 
         # Run pipeline - should handle errors gracefully
         try:
-            results = run_autonomous_ml(config, X, y)
+            results = await run_autonomous_ml(config, X, y)
             # If it succeeds, that's also fine (pipeline might handle NaN data)
             assert "status" in results
         except Exception as e:
             # Pipeline should fail gracefully with informative error
             assert len(str(e)) > 0
 
-    def test_performance_under_constraints(self):
+    async def test_performance_under_constraints(self):
         """Test pipeline performance under time constraints."""
         # Create sample data
         data = create_sample_data(
@@ -261,7 +261,7 @@ class TestIntegration:
         import time
 
         start_time = time.time()
-        results = run_autonomous_ml(config, X, y)
+        results = await run_autonomous_ml(config, X, y)
         end_time = time.time()
 
         # Verify it respects time budget (with some tolerance)
