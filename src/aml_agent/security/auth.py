@@ -25,14 +25,18 @@ class SecurityManager:
         self.secret_key = secret_key or os.getenv(
             "AML_SECRET_KEY", self._generate_secret_key()
         )
-        self.api_keys: dict[str, dict[str, Any]] = {}  # In production, use a proper database
+        self.api_keys: dict[str, dict[str, Any]] = (
+            {}
+        )  # In production, use a proper database
         self.rate_limits: dict[str, dict[str, Any]] = {}  # Simple rate limiting
 
     def _generate_secret_key(self) -> str:
         """Generate a secure secret key."""
         return secrets.token_urlsafe(32)
 
-    def generate_api_key(self, user_id: str, permissions: Optional[List[str]] = None) -> str:
+    def generate_api_key(
+        self, user_id: str, permissions: Optional[List[str]] = None
+    ) -> str:
         """
         Generate an API key for a user.
 
@@ -140,7 +144,9 @@ class SecurityManager:
         return True
 
     def validate_input_data(
-        self, data: Union[Dict, pd.DataFrame], expected_columns: Optional[List[str]] = None
+        self,
+        data: Union[Dict, pd.DataFrame],
+        expected_columns: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Validate input data for security and correctness.
@@ -338,7 +344,10 @@ class SecurityManager:
         }
 
     def audit_log(
-        self, action: str, user_id: Optional[str] = None, details: Optional[Dict[str, Any]] = None
+        self,
+        action: str,
+        user_id: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
     ):
         """Log security-related actions."""
         log_entry = {
