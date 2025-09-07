@@ -6,6 +6,13 @@ import asyncio
 
 import pytest
 
+# Try to import pytest_asyncio, but don't fail if it's not available
+try:
+    import pytest_asyncio
+    pytest_plugins = ["pytest_asyncio"]
+except ImportError:
+    pytest_plugins = []
+
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -19,7 +26,3 @@ def event_loop():
 def anyio_backend():
     """Use asyncio backend for anyio."""
     return "asyncio"
-
-
-# Ensure pytest-asyncio is properly configured
-pytest_plugins = ["pytest_asyncio"]

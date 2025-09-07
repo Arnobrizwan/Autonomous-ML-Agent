@@ -501,7 +501,7 @@ def create_sample_data(
     np.random.seed(42)
 
     # Generate features
-    feature_data = {}
+    feature_data: dict[str, np.ndarray] = {}
     for i in range(n_features):
         feature_data[f"feature_{i}"] = np.random.randn(n_samples)
 
