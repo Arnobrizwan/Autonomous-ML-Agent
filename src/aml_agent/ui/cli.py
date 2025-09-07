@@ -199,21 +199,59 @@ def leaderboard(
 
 
 @app.command()
-def web():
-    """Launch web UI."""
+def web(
+    host: str = typer.Option("localhost", "--host", help="Host to bind to"),
+    port: int = typer.Option(8000, "--port", help="Port to bind to"),
+    theme: str = typer.Option("light", "--theme", help="UI theme (light/dark)"),
+    debug: bool = typer.Option(False, "--debug", help="Enable debug mode"),
+):
+    """Launch web UI with enhanced features."""
     try:
+        import os
         import subprocess
         import sys
 
-        console.print("[blue]Launching web UI...[/blue]")
+        # Set environment variables for Streamlit
+        os.environ["STREAMLIT_SERVER_PORT"] = str(port)
+        os.environ["STREAMLIT_SERVER_ADDRESS"] = host
+        os.environ["STREAMLIT_THEME_BASE"] = theme
+        os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+
+        if debug:
+            os.environ["STREAMLIT_LOGGER_LEVEL"] = "debug"
+
+        console.print(f"[blue]Launching Autonomous ML Agent Web UI...[/blue]")
+        console.print(f"[green]Access the UI at: http://{host}:{port}[/green]")
+        console.print("[yellow]Press Ctrl+C to stop the server[/yellow]")
+
+        # Launch Streamlit with proper configuration
         subprocess.run(
-            [sys.executable, "-m", "streamlit", "run", "src/aml_agent/ui/web.py"],
+            [
+                sys.executable,
+                "-m",
+                "streamlit",
+                "run",
+                "src/aml_agent/ui/web.py",
+                "--server.port",
+                str(port),
+                "--server.address",
+                host,
+                "--theme.base",
+                theme,
+                "--browser.gatherUsageStats",
+                "false",
+            ],
             check=True,
         )
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Web UI stopped by user[/yellow]")
     except Exception as e:
         console.print(f"[bold red]Error launching web UI: {str(e)}[/bold red]")
         console.print(
             "[yellow]Make sure streamlit is installed: pip install streamlit[/yellow]"
+        )
+        console.print(
+            "[yellow]Also ensure all dependencies are installed: pip install -r requirements.txt[/yellow]"
         )
         sys.exit(1)
 
@@ -585,9 +623,60 @@ def init():
 
         console.print("[green]Project initialized successfully![/green]")
         console.print("Run 'aml run' to start the pipeline")
+        console.print("Run 'aml web' to launch the web interface")
 
     except Exception as e:
         console.print(f"[bold red]Error: {str(e)}[/bold red]")
+        sys.exit(1)
+
+
+@app.command()
+def demo():
+    """Launch demo with sample data and web interface."""
+    try:
+        import os
+        import subprocess
+        import sys
+        import time
+
+        console.print("[blue]🚀 Starting Autonomous ML Agent Demo...[/blue]")
+
+        # Initialize project if needed
+        if not Path("data").exists():
+            console.print("[yellow]Initializing project...[/yellow]")
+            Path("data").mkdir(exist_ok=True)
+            Path("artifacts").mkdir(exist_ok=True)
+            Path("configs").mkdir(exist_ok=True)
+            create_sample_data()
+
+        console.print("[green]✅ Project ready![/green]")
+        console.print("[blue]🌐 Launching web interface...[/blue]")
+        console.print("[green]Access the demo at: http://localhost:8000[/green]")
+        console.print("[yellow]Press Ctrl+C to stop the demo[/yellow]")
+
+        # Launch web interface
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "streamlit",
+                "run",
+                "src/aml_agent/ui/web.py",
+                "--server.port",
+                "8000",
+                "--server.address",
+                "localhost",
+                "--theme.base",
+                "light",
+                "--browser.gatherUsageStats",
+                "false",
+            ],
+            check=True,
+        )
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Demo stopped by user[/yellow]")
+    except Exception as e:
+        console.print(f"[bold red]Error launching demo: {str(e)}[/bold red]")
         sys.exit(1)
 
 

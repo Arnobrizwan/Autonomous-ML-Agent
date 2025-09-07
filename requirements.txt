@@ -41,6 +41,13 @@ plotly==5.17.0
 
 # Web UI
 streamlit==1.28.1
+streamlit-option-menu==0.3.6
+
+# AI API Integration
+openai>=1.0.0,<2.0.0
+google-generativeai>=0.3.0,<1.0.0
+anthropic>=0.7.0,<1.0.0
+mistralai>=0.0.12,<1.0.0
 
 # System monitoring
 psutil==5.9.6

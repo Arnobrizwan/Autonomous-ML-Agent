@@ -296,11 +296,6 @@ def safe_divide(numerator: float, denominator: float, default: float = 0.0) -> f
     return numerator / denominator
 
 
-def clamp_probabilities(probs: np.ndarray, epsilon: float = 1e-7) -> np.ndarray:
-    """Clamp probabilities to valid range [epsilon, 1-epsilon]."""
-    return np.clip(probs, epsilon, 1 - epsilon)
-
-
 def validate_prediction_input(
     data: Union[Dict, pd.DataFrame], expected_columns: List[str]
 ) -> bool:
@@ -358,29 +353,6 @@ def format_score(score: float, metric: str) -> str:
         return f"{score:.6f}"
     else:
         return f"{score:.4f}"
-
-
-def get_memory_usage() -> float:
-    """Get current memory usage in MB."""
-    try:
-        import psutil
-
-        process = psutil.Process()
-        return process.memory_info().rss / 1024 / 1024
-    except ImportError:
-        return 0.0
-
-
-def set_random_seed(seed: int) -> None:
-    """Set random seed for reproducibility."""
-    random.seed(seed)
-    np.random.seed(seed)
-    try:
-        import torch
-
-        torch.manual_seed(seed)
-    except ImportError:
-        pass
 
 
 def load_data(file_path: Union[str, Path], **kwargs) -> pd.DataFrame:
@@ -516,3 +488,266 @@ def create_sample_data(
     feature_data["target"] = target
 
     return pd.DataFrame(feature_data)
+
+
+def create_ai_enhanced_sample_data(
+    n_samples: int = 1000,
+    n_features: int = 10,
+    task_type: TaskType = TaskType.CLASSIFICATION,
+    dataset_theme: str = "customer_analytics",
+) -> pd.DataFrame:
+    """
+    Create AI-enhanced sample dataset with realistic features and names.
+
+    Args:
+        n_samples: Number of samples
+        n_features: Number of features
+        task_type: Task type
+        dataset_theme: Theme for the dataset (e.g., 'customer_analytics', 'financial', 'medical')
+
+    Returns:
+        Enhanced sample DataFrame with realistic column names and data
+    """
+    import os
+    import random
+    from typing import Optional
+
+    np.random.seed(42)
+    random.seed(42)
+
+    # Define realistic feature names based on theme
+    feature_templates = {
+        "customer_analytics": [
+            "age",
+            "income",
+            "spending_score",
+            "credit_score",
+            "tenure_months",
+            "purchase_frequency",
+            "avg_order_value",
+            "last_login_days",
+            "support_tickets",
+            "satisfaction_rating",
+            "loyalty_points",
+            "referral_count",
+            "device_type",
+            "location_score",
+            "engagement_score",
+        ],
+        "financial": [
+            "account_balance",
+            "credit_limit",
+            "monthly_income",
+            "debt_ratio",
+            "payment_history",
+            "credit_inquiries",
+            "loan_amount",
+            "interest_rate",
+            "employment_years",
+            "home_ownership",
+            "loan_default_risk",
+            "savings_rate",
+            "investment_amount",
+            "risk_tolerance",
+            "financial_stress",
+        ],
+        "medical": [
+            "age",
+            "bmi",
+            "blood_pressure",
+            "cholesterol",
+            "glucose_level",
+            "exercise_hours",
+            "sleep_hours",
+            "stress_level",
+            "family_history",
+            "medication_count",
+            "hospital_visits",
+            "symptoms_count",
+            "vital_signs",
+            "lab_results",
+            "treatment_duration",
+        ],
+        "ecommerce": [
+            "product_rating",
+            "price_sensitivity",
+            "brand_loyalty",
+            "seasonal_demand",
+            "inventory_level",
+            "marketing_spend",
+            "conversion_rate",
+            "bounce_rate",
+            "session_duration",
+            "cart_abandonment",
+            "return_rate",
+            "shipping_cost",
+            "discount_usage",
+            "repeat_purchase",
+            "social_media_engagement",
+        ],
+    }
+
+    # Get feature names for the theme
+    available_features = feature_templates.get(
+        dataset_theme, feature_templates["customer_analytics"]
+    )
+    selected_features = random.sample(
+        available_features, min(n_features, len(available_features))
+    )
+
+    # Generate realistic data based on feature names
+    feature_data = {}
+
+    for feature in selected_features:
+        if "age" in feature.lower():
+            # Age: normally distributed around 35-45
+            feature_data[feature] = np.random.normal(40, 15, n_samples).astype(int)
+            feature_data[feature] = np.clip(feature_data[feature], 18, 80)
+        elif (
+            "income" in feature.lower()
+            or "balance" in feature.lower()
+            or "amount" in feature.lower()
+        ):
+            # Financial amounts: log-normal distribution
+            feature_data[feature] = np.random.lognormal(8, 1, n_samples).astype(int)
+        elif "score" in feature.lower() or "rating" in feature.lower():
+            # Scores: uniform distribution 0-100
+            feature_data[feature] = np.random.uniform(0, 100, n_samples).astype(int)
+        elif (
+            "count" in feature.lower()
+            or "visits" in feature.lower()
+            or "tickets" in feature.lower()
+        ):
+            # Counts: Poisson distribution
+            feature_data[feature] = np.random.poisson(5, n_samples).astype(int)
+        elif "ratio" in feature.lower() or "rate" in feature.lower():
+            # Ratios: beta distribution
+            feature_data[feature] = np.random.beta(2, 5, n_samples).astype(float)
+        elif "level" in feature.lower() or "hours" in feature.lower():
+            # Levels: normal distribution
+            feature_data[feature] = np.random.normal(50, 20, n_samples).astype(float)
+        else:
+            # Default: normal distribution
+            feature_data[feature] = np.random.normal(0, 1, n_samples)
+
+    # Generate target based on task type
+    if task_type == TaskType.CLASSIFICATION:
+        # Create more realistic classification target
+        if dataset_theme == "customer_analytics":
+            # Churn prediction: based on multiple features
+            churn_score = np.zeros(n_samples)
+            for feature, values in feature_data.items():
+                if "satisfaction" in feature.lower() or "rating" in feature.lower():
+                    churn_score += (100 - values) * 0.3
+                elif "tickets" in feature.lower() or "complaints" in feature.lower():
+                    churn_score += values * 0.2
+                elif "tenure" in feature.lower() or "loyalty" in feature.lower():
+                    churn_score -= values * 0.1
+
+            # Convert to binary classification
+            target = (churn_score > np.percentile(churn_score, 70)).astype(int)
+        else:
+            # Generic binary classification
+            target = np.random.randint(0, 2, n_samples)
+    else:
+        # Regression target
+        if dataset_theme == "financial":
+            # Price prediction based on features
+            target = np.random.normal(1000, 300, n_samples)
+        else:
+            # Generic regression
+            target = np.random.normal(0, 1, n_samples)
+
+    feature_data["target"] = target.astype(
+        np.int64 if task_type == TaskType.CLASSIFICATION else np.float64
+    )
+
+    # Add some realistic noise and correlations
+    df = pd.DataFrame(feature_data)
+
+    # Add some missing values for realism
+    missing_ratio = 0.05
+    for col in df.columns:
+        if col != "target":
+            mask = np.random.random(len(df)) < missing_ratio
+            df.loc[mask, col] = np.nan
+
+    return df
+
+
+def generate_ai_dataset_description(
+    dataset_theme: str = "customer_analytics",
+    task_type: TaskType = TaskType.CLASSIFICATION,
+    n_samples: int = 1000,
+    n_features: int = 10,
+) -> str:
+    """
+    Generate AI-powered dataset description using available APIs.
+
+    Args:
+        dataset_theme: Theme for the dataset
+        task_type: Task type
+        n_samples: Number of samples
+        n_features: Number of features
+
+    Returns:
+        Generated dataset description
+    """
+    import os
+
+    # Try to use AI APIs if available
+    try:
+        # Try OpenAI first
+        if os.getenv("OPENAI_API_KEY"):
+            import openai
+
+            client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+            prompt = f"""
+            Generate a brief, professional description for a {task_type.value} dataset with the following characteristics:
+            - Theme: {dataset_theme}
+            - Samples: {n_samples}
+            - Features: {n_features}
+            
+            The description should be 2-3 sentences explaining what this dataset represents and its potential use cases.
+            """
+
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=150,
+            )
+            content = response.choices[0].message.content
+            return content.strip() if content else "Generated dataset description"
+
+    except Exception as e:
+        print(f"OpenAI API error: {e}")
+
+    try:
+        # Try Google Gemini
+        if os.getenv("GOOGLE_API_KEY"):
+            import google.generativeai as genai
+
+            genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+            model = genai.GenerativeModel("gemini-pro")
+
+            prompt = f"Generate a brief description for a {task_type.value} dataset with {dataset_theme} theme, {n_samples} samples, and {n_features} features."
+
+            response = model.generate_content(prompt)  # type: ignore
+            if hasattr(response, "text") and response.text:
+                return response.text.strip()
+            else:
+                return "Generated dataset description"
+
+    except Exception as e:
+        print(f"Google Gemini API error: {e}")
+
+    # Fallback to static descriptions
+    descriptions = {
+        "customer_analytics": f"This {task_type.value} dataset contains customer analytics data with {n_samples} samples and {n_features} features. It's designed for predicting customer behavior, churn analysis, and segmentation tasks.",
+        "financial": f"This {task_type.value} dataset contains financial data with {n_samples} samples and {n_features} features. It's suitable for credit risk assessment, fraud detection, and financial modeling.",
+        "medical": f"This {task_type.value} dataset contains medical data with {n_samples} samples and {n_features} features. It's designed for health outcome prediction, diagnosis assistance, and medical research.",
+        "ecommerce": f"This {task_type.value} dataset contains e-commerce data with {n_samples} samples and {n_features} features. It's suitable for sales forecasting, recommendation systems, and market analysis.",
+    }
+
+    return descriptions.get(dataset_theme, descriptions["customer_analytics"])

@@ -4,16 +4,23 @@
 
 ### **Step 1: Health Check** ✅
 ```bash
-./quick_check.sh
+# Check if dependencies are installed
+pip list | grep -E "(streamlit|fastapi|scikit-learn)"
+
+# Check if the package is installed
+python -c "import aml_agent; print('✅ Package installed successfully')"
 ```
-**Expected Output:** All systems green ✅
+**Expected Output:** All dependencies found and package imports successfully ✅
 
 ### **Step 2: Start the Service** 🌐
 ```bash
 # Option A: Docker (Recommended for demo)
 docker run -d --name aml-demo -p 8000:8000 aml-agent:latest
 
-# Option B: Local Python
+# Option B: Local Python Web Interface
+aml web --port 8501 --host localhost
+
+# Option C: Local Python API Server
 aml serve --host 0.0.0.0 --port 8000
 ```
 
@@ -26,7 +33,8 @@ curl http://localhost:8000/healthz
 ```
 
 ### **Step 4: Open Web Interface** 🖥️
-- **URL:** http://localhost:8000
+- **Web UI:** http://localhost:8501 (if using `aml web`)
+- **API Server:** http://localhost:8000 (if using `aml serve`)
 - **API Docs:** http://localhost:8000/docs
 - **Health Dashboard:** http://localhost:8000/health
 
@@ -225,9 +233,6 @@ df.to_csv('house_data.csv', index=False)
 
 # Full demo
 ./demo.sh
-
-# Start service
-docker run -d --name aml-demo -p 8000:8000 aml-agent:latest
 
 # Run pipeline
 aml run --data your_data.csv --target target_column

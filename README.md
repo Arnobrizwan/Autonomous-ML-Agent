@@ -140,9 +140,15 @@ Just upload your CSV file and get a complete ML solution with the best model, ex
 # Clone and start
 git clone https://github.com/Arnobrizwan/Autonomous-ML-Agent.git
 cd Autonomous-ML-Agent
-./start_demo.sh
 
-# Open http://localhost:8000 in your browser
+# Install dependencies
+pip install -r requirements.txt
+pip install -e .
+
+# Start web interface
+aml web
+
+# Open http://localhost:8501 in your browser
 # Upload your CSV file and click "Train Model"
 ```
 
@@ -162,10 +168,6 @@ aml web
 ### Option 3: Docker (Production)
 ```bash
 # One command deployment
-docker run -p 8000:8000 aml-agent:latest
-
-# Or build locally
-docker build -t aml-agent:latest -f docker/Dockerfile .
 docker run -p 8000:8000 aml-agent:latest
 ```
 
@@ -254,13 +256,6 @@ The web dashboard provides:
 # Install and run locally
 pip install -e .
 aml run --data your_data.csv --target target_column
-```
-
-### Docker Container
-```bash
-# Build and run
-docker build -t aml-agent:latest -f docker/Dockerfile .
-docker run -p 8000:8000 aml-agent:latest
 ```
 
 ### Docker Compose
