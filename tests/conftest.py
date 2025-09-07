@@ -6,13 +6,7 @@ import asyncio
 
 import pytest
 
-# Try to import pytest_asyncio, but don't fail if it's not available
-try:
-    import pytest_asyncio
-
-    pytest_plugins = ["pytest_asyncio"]
-except ImportError:
-    pytest_plugins = []
+# Note: pytest-asyncio configuration is handled in pytest.ini
 
 
 @pytest.fixture(scope="session")
