@@ -40,6 +40,7 @@ def setup_logging(
     logger.handlers.clear()
 
     # Create formatters
+    console_handler: logging.Handler
     if rich_console:
         # Use rich handler for console
         console_handler = RichHandler(

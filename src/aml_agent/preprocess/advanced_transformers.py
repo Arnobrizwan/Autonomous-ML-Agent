@@ -340,7 +340,7 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
         self.include_bias = include_bias
         self.max_features = max_features
         self.poly_features = None
-        self.feature_names_ = []
+        self.feature_names_: List[str] = []
         self.is_fitted = False
 
     def fit(
@@ -505,7 +505,7 @@ class AdvancedOutlierDetector(BaseEstimator, TransformerMixin):
         self.robust_scaling = robust_scaling
         self.outlier_detector = None
         self.scaler = None
-        self.outlier_indices_ = set()
+        self.outlier_indices_: Set[int] = set()
         self.is_fitted = False
 
     def fit(
@@ -627,7 +627,7 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
         self.k = k
         self.correlation_threshold = correlation_threshold
         self.variance_threshold = variance_threshold
-        self.selected_features_ = []
+        self.selected_features_: List[str] = []
         self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> "FeatureSelector":
@@ -972,13 +972,13 @@ class TextFeatureExtractor(BaseEstimator, TransformerMixin):
         self.max_features = max_features
         self.min_df = min_df
         self.vectorizer = None
-        self.text_columns = []
+        self.text_columns: List[str] = []
         self.is_fitted = False
 
     def fit(self, X: pd.DataFrame, y=None):
         """Fit text feature extractor."""
         # Identify text columns (long string columns)
-        self.text_columns = []
+        self.text_columns: List[str] = []
         for col in X.columns:
             if X[col].dtype == "object":
                 avg_length = X[col].astype(str).str.len().mean()

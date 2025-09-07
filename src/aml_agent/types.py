@@ -104,7 +104,7 @@ class DatasetProfile:
     class_balance: Optional[float] = None
     task_type: Optional[TaskType] = None
     target_column: Optional[str] = None
-    feature_columns: List[str] = None
+    feature_columns: Optional[List[str]] = None
     data_hash: Optional[str] = None
 
 
@@ -165,10 +165,10 @@ class ModelCard:
     performance_metrics: Dict[str, float]
     feature_importance: Dict[str, float]
     confusion_matrix: Optional[np.ndarray] = None
-    top_features: List[str] = None
-    limitations: List[str] = None
-    recommendations: List[str] = None
-    created_at: datetime = None
+    top_features: Optional[List[str]] = None
+    limitations: Optional[List[str]] = None
+    recommendations: Optional[List[str]] = None
+    created_at: Optional[datetime] = None
 
 
 @dataclass
@@ -280,7 +280,7 @@ class SearchSpace:
 
     model_type: ModelType
     space: Dict[str, Any]
-    fixed_params: Dict[str, Any] = None
+    fixed_params: Optional[Dict[str, Any]] = None
 
 
 @dataclass
