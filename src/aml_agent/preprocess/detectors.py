@@ -234,13 +234,32 @@ class OutlierDetector:
 
     def _iqr_outliers(self, series: pd.Series) -> List[int]:
         """Detect outliers using IQR method."""
-        Q1 = series.quantile(0.25)
-        Q3 = series.quantile(0.75)
+        # Ensure we have numeric data and handle edge cases
+        if series.dtype == "bool" or series.dtype == "object":
+            return []
+
+        # Convert to numeric, coercing errors to NaN
+        numeric_series = pd.to_numeric(series, errors="coerce")
+
+        # Remove NaN values for quantile calculation
+        clean_series = numeric_series.dropna()
+
+        if len(clean_series) < 4:  # Need at least 4 points for IQR
+            return []
+
+        Q1 = clean_series.quantile(0.25)
+        Q3 = clean_series.quantile(0.75)
         IQR = Q3 - Q1
+
+        if IQR == 0:  # No variation in data
+            return []
+
         lower_bound = Q1 - 1.5 * IQR
         upper_bound = Q3 + 1.5 * IQR
 
-        outliers = series[(series < lower_bound) | (series > upper_bound)]
+        outliers = clean_series[
+            (clean_series < lower_bound) | (clean_series > upper_bound)
+        ]
         return outliers.index.tolist()
 
     def _zscore_outliers(self, series: pd.Series, threshold: float = 3.0) -> List[int]:

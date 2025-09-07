@@ -152,10 +152,15 @@ class PreprocessingPipeline:
         X_transformed = self.pipeline.transform(X)
 
         # Convert to DataFrame
-        if hasattr(self.pipeline, "get_feature_names_out"):
-            feature_names = self.pipeline.get_feature_names_out()
-        else:
+        # Generate feature names based on the actual transformed shape
+        if X_transformed.shape[1] == len(self.feature_names_):
             feature_names = self.feature_names_
+        else:
+            # One-hot encoding created more features, generate names
+            feature_names = [f"feature_{i}" for i in range(X_transformed.shape[1])]
+
+        # Store the actual feature names for get_feature_names_out()
+        self._transformed_feature_names = feature_names
 
         result = pd.DataFrame(X_transformed, columns=feature_names, index=X.index)
 
@@ -288,7 +293,11 @@ class PreprocessingPipeline:
 
     def get_feature_names_out(self) -> List[str]:
         """Get output feature names."""
-        return self.feature_names_
+        # Return the feature names that match the actual transformed data shape
+        if hasattr(self, "_transformed_feature_names"):
+            return self._transformed_feature_names
+        else:
+            return self.feature_names_
 
     def get_preprocessing_info(self) -> Dict[str, Any]:
         """Get information about preprocessing steps."""

@@ -2,10 +2,7 @@
 Comprehensive tests for monitoring and metrics system.
 """
 
-import json
-import time
 from pathlib import Path
-from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -20,6 +17,7 @@ from src.aml_agent.monitoring.metrics import (
 from src.aml_agent.types import TaskType
 
 
+@pytest.mark.unit
 class TestHealthChecker:
     """Test health checking functionality."""
 
@@ -37,6 +35,7 @@ class TestHealthChecker:
         assert "checks" in health_status
 
 
+@pytest.mark.unit
 class TestPerformanceMonitor:
     """Test performance monitoring functionality."""
 
@@ -52,6 +51,7 @@ class TestPerformanceMonitor:
         assert isinstance(summary, dict)
 
 
+@pytest.mark.unit
 class TestMetricsCollector:
     """Test metrics collection functionality."""
 
@@ -208,6 +208,7 @@ class TestMetricsCollector:
         assert len(new_collector.metrics_history) == 1
 
 
+@pytest.mark.unit
 class TestGlobalInstances:
     """Test global monitoring instances."""
 
@@ -242,6 +243,7 @@ class TestGlobalInstances:
         assert len(collector.metrics_history) == 1
 
 
+@pytest.mark.integration
 class TestIntegration:
     """Integration tests for monitoring system."""
 

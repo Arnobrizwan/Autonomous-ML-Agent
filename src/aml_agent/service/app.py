@@ -4,7 +4,6 @@ FastAPI service for serving ML models.
 
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile

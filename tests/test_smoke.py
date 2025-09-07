@@ -14,6 +14,7 @@ from src.aml_agent.types import MetricType, ModelType, TaskType
 from src.aml_agent.utils import create_sample_data
 
 
+@pytest.mark.smoke
 class TestSmoke:
     """Smoke tests to verify basic functionality."""
 
@@ -75,7 +76,6 @@ class TestSmoke:
     def test_model_training(self):
         """Test model training."""
         from src.aml_agent.models import ModelTrainer
-        from src.aml_agent.types import ModelType, TaskType
 
         # Create sample data
         data = create_sample_data(
@@ -104,7 +104,6 @@ class TestSmoke:
     def test_hyperparameter_optimization(self):
         """Test hyperparameter optimization."""
         from src.aml_agent.models import ModelTrainer
-        from src.aml_agent.types import ModelType, TaskType
 
         # Create sample data
         data = create_sample_data(
@@ -127,7 +126,7 @@ class TestSmoke:
 
     def test_leaderboard(self):
         """Test leaderboard functionality."""
-        from src.aml_agent.types import LeaderboardEntry, MetricType, ModelType
+        from src.aml_agent.types import LeaderboardEntry
         from src.aml_agent.ui.leaderboard import Leaderboard
 
         # Create leaderboard
@@ -172,7 +171,6 @@ class TestSmoke:
         """Test feature importance calculation."""
         from src.aml_agent.interpret.importance import FeatureImportanceAnalyzer
         from src.aml_agent.models.registries import get_model_factory
-        from src.aml_agent.types import ModelType, TaskType
 
         # Create sample data
         data = create_sample_data(
@@ -200,7 +198,7 @@ class TestSmoke:
         from datetime import datetime
 
         from src.aml_agent.models.ensemble import EnsembleBuilder
-        from src.aml_agent.types import MetricType, ModelType, TaskType, TrialResult
+        from src.aml_agent.types import TrialResult
 
         # Create sample data
         data = create_sample_data(
@@ -246,53 +244,9 @@ class TestSmoke:
 
     def test_model_card_generation(self):
         """Test model card generation."""
-        from datetime import datetime
-
         from src.aml_agent.export.model_card import ModelCardGenerator
-        from src.aml_agent.types import (
-            DatasetProfile,
-            MetricType,
-            ModelType,
-            TaskType,
-            TrialResult,
-        )
 
         # Create mock data
-        trial_results = [
-            TrialResult(
-                trial_id=1,
-                model_type=ModelType.LOGISTIC_REGRESSION,
-                params={"C": 1.0},
-                score=0.85,
-                metric=MetricType.ACCURACY,
-                cv_scores=[0.83, 0.84, 0.86, 0.85, 0.87],
-                fit_time=1.5,
-                predict_time=0.01,
-                timestamp=datetime.now(),
-            )
-        ]
-
-        dataset_profile = DatasetProfile(
-            n_rows=100,
-            n_cols=6,
-            n_numeric=5,
-            n_categorical=0,
-            n_datetime=0,
-            n_text=0,
-            missing_ratio=0.0,
-            class_balance=0.5,
-            task_type=TaskType.CLASSIFICATION,
-            target_column="target",
-            feature_columns=[
-                "feature_0",
-                "feature_1",
-                "feature_2",
-                "feature_3",
-                "feature_4",
-            ],
-            data_hash="test_hash",
-        )
-
         # Generate model card
         generator = ModelCardGenerator(task_type=TaskType.CLASSIFICATION)
 
@@ -324,12 +278,7 @@ class TestSmoke:
         from datetime import datetime
 
         from src.aml_agent.meta.store import MetaStore
-        from src.aml_agent.types import (
-            DatasetProfile,
-            MetricType,
-            ModelType,
-            TrialResult,
-        )
+        from src.aml_agent.types import DatasetProfile
 
         # Create meta store
         store = MetaStore(str(self.artifacts_dir / "meta"))
@@ -355,20 +304,6 @@ class TestSmoke:
             ],
             data_hash="test_hash",
         )
-
-        trial_results = [
-            TrialResult(
-                trial_id=1,
-                model_type=ModelType.LOGISTIC_REGRESSION,
-                params={"C": 1.0},
-                score=0.85,
-                metric=MetricType.ACCURACY,
-                cv_scores=[0.83, 0.84, 0.86, 0.85, 0.87],
-                fit_time=1.5,
-                predict_time=0.01,
-                timestamp=datetime.now(),
-            )
-        ]
 
         # Store run - create a simple dict that matches what the store expects
         run_data = {
@@ -401,7 +336,6 @@ class TestSmoke:
 
     def test_fastapi_service(self):
         """Test FastAPI service creation."""
-        from src.aml_agent.service.app import app
 
         # Create test artifacts directory
         test_artifacts = self.artifacts_dir / "test_run"

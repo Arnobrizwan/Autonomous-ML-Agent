@@ -82,6 +82,22 @@ target/
 profile_default/
 ipython_config.py
 
+# Test artifacts and temporary files
+test_*.json
+catboost_info/
+*.tmp
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+Thumbs.db
+
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
 #   intended to run in multiple environments; otherwise, check them in:
@@ -121,7 +137,7 @@ celerybeat.pid
 
 # Environments
 .env
-.venv
+.venv/
 env/
 venv/
 ENV/

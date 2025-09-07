@@ -4,7 +4,6 @@ Vibe Model - Clean Enterprise Dashboard for AI-Powered Machine Learning.
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import plotly.express as px
@@ -12,15 +11,13 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 
 from ..export.artifact import ArtifactExporter
-from ..export.model_card import ModelCardGenerator
 from ..interpret.explain import ModelExplainer
 from ..interpret.importance import FeatureImportanceAnalyzer
 from ..logging import get_logger
 from ..meta.store import MetaStore
-from ..meta.warmstart import WarmStartManager
 from ..monitoring.metrics import MetricsCollector
 from ..security.auth import SecurityManager
-from ..utils import create_sample_data, load_data
+from ..utils import create_sample_data
 
 logger = get_logger()
 
@@ -55,7 +52,7 @@ st.markdown(
     .main {
         padding-top: 2rem;
     }
-    
+
     .stApp {
         background-color: var(--light-bg);
     }
@@ -730,13 +727,13 @@ def show_pipeline_runner():
             )
 
         with col2:
-            handle_missing = st.checkbox(
+            st.checkbox(
                 "🔧 Auto-fix Missing Data",
                 value=True,
                 help="Automatically handle missing values in your data",
             )
 
-            scale_features = st.checkbox(
+            st.checkbox(
                 "📏 Normalize Data",
                 value=True,
                 help="Scale features for better AI model performance",
@@ -766,7 +763,6 @@ def show_pipeline_runner():
             # Simulate pipeline execution
             import time
 
-            from ..agent.loop import run_autonomous_ml
             from ..config import create_default_config
 
             # Create config
@@ -781,14 +777,9 @@ def show_pipeline_runner():
             config.use_mlflow = use_mlflow
 
             # Prepare data
-            df = st.session_state.uploaded_data
             if st.session_state.target_column:
-                # X = ...  # unused
-                # y = ...  # unused
                 pass
             else:
-                # X = ...  # unused
-                # y = ...  # unused
                 pass
 
             # Update progress
@@ -1045,38 +1036,38 @@ def show_model_analysis():
         st.markdown(
             """
         ## AI Model Report: XGBoost Classifier
-        
+
         **🤖 Model Information:**
         - AI Type: XGBoost
         - Task: Binary Classification
         - Created: 2024-12-01
         - Version: 1.0.0
-        
+
         **📊 Performance Metrics:**
         - Accuracy: 89.2%
         - Precision: 87.5%
         - Recall: 91.0%
         - F1-Score: 89.2%
         - Reliability: 94%
-        
+
         **📈 Training Data:**
         - Data Points: 1,000
         - Features: 10
         - Missing Values: 0%
         - Data Balance: 60/40
-        
+
         **⚙️ AI Settings:**
         - Trees: 100
         - Depth: 6
         - Learning Rate: 0.1
         - Sample Rate: 80%
         - Feature Rate: 80%
-        
+
         **⚠️ Limitations:**
         - May struggle with very imbalanced data
         - Works best with numerical data
         - Sensitive to extreme values
-        
+
         **💡 Recommendations:**
         - Monitor performance on new data
         - Retrain if data patterns change
@@ -1109,18 +1100,16 @@ def show_settings():
     # Model settings
     st.subheader("🤖 Model Settings")
 
-    # models_config = ...  # unused
-    models_config = {
-        "Logistic Regression": st.checkbox("Enable Logistic Regression", value=True),
-        "Linear Regression": st.checkbox("Enable Linear Regression", value=True),
-        "Random Forest": st.checkbox("Enable Random Forest", value=True),
-        "Gradient Boosting": st.checkbox("Enable Gradient Boosting", value=True),
-        "k-NN": st.checkbox("Enable k-NN", value=True),
-        "MLP": st.checkbox("Enable MLP", value=True),
-        "XGBoost": st.checkbox("Enable XGBoost", value=True),
-        "LightGBM": st.checkbox("Enable LightGBM", value=True),
-        "CatBoost": st.checkbox("Enable CatBoost", value=True),
-    }
+    # Model configuration checkboxes
+    st.checkbox("Enable Logistic Regression", value=True)
+    st.checkbox("Enable Linear Regression", value=True)
+    st.checkbox("Enable Random Forest", value=True)
+    st.checkbox("Enable Gradient Boosting", value=True)
+    st.checkbox("Enable k-NN", value=True)
+    st.checkbox("Enable MLP", value=True)
+    st.checkbox("Enable XGBoost", value=True)
+    st.checkbox("Enable LightGBM", value=True)
+    st.checkbox("Enable CatBoost", value=True)
 
     # API settings
     st.subheader("🌐 API Settings")
@@ -1425,7 +1414,7 @@ def show_monitoring():
 
     fig = px.line(
         x=dates,
-        # y = ...  # unused
+        y=accuracy,
         title="Model Accuracy Over Time",
         labels={"x": "Date", "y": "Accuracy"},
     )

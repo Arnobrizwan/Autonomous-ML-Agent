@@ -1,14 +1,29 @@
-# Git
-.git
+# =============================================================================
+# ULTRA-OPTIMIZED .dockerignore for Maximum Size Reduction
+# =============================================================================
+
+# Git and version control
+.git/
 .gitignore
 .gitattributes
+.gitmodules
+.gitkeep
 
-# Python
+# Python bytecode and cache
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
 *$py.class
 *.so
 .Python
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+MANIFEST.in
+
+# Build artifacts
 build/
 develop-eggs/
 dist/
@@ -21,29 +36,32 @@ parts/
 sdist/
 var/
 wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+*.whl
 
 # Virtual environments
 .env
-.venv
+.venv/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
 .conda/
+.conda-env/
+conda-meta/
 
-# IDE
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.pydevproject
+.settings/
+*.sublime-*
 
-# Testing
+# Testing and coverage
 .pytest_cache/
 .coverage
 htmlcov/
@@ -52,33 +70,70 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
+.coverage.*
+.nyc_output/
+test-results/
+junit.xml
 
-# Documentation
+# Documentation (keep only essential)
 docs/
 *.md
 !README.md
+doc/
+documentation/
+sphinx/
+_sphinx/
 
-# CI/CD
+# CI/CD and automation
 .github/
 .gitlab-ci.yml
 .travis.yml
 .circleci/
+azure-pipelines.yml
+Jenkinsfile
+Makefile
+makefile
+GNUmakefile
 
-# Data and artifacts
+# Data and artifacts (exclude all data files)
 data/
 artifacts/
 *.csv
 *.parquet
 *.pkl
+*.pickle
 *.joblib
 *.h5
 *.hdf5
+*.feather
+*.xlsx
+*.xls
+*.json
+*.jsonl
+*.xml
+*.yaml
+*.yml
+*.toml
+*.ini
+*.cfg
+*.conf
 
-# Logs
+# Logs and temporary files
 *.log
 logs/
+log/
+*.out
+*.err
+*.pid
+*.lock
+*.tmp
+*.temp
+.tmp/
+.temp/
+temp/
+tmp/
 
-# OS
+# OS-specific files
 .DS_Store
 .DS_Store?
 ._*
@@ -86,54 +141,118 @@ logs/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
 
-# Node modules (if any)
+# Node.js (if any)
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+package-lock.json
+yarn.lock
 
-# Temporary files
-*.tmp
-*.temp
-.tmp/
-.temp/
-
-# Docker
+# Docker files
 Dockerfile*
 docker-compose*.yml
 .dockerignore
+.dockerignore.*
 
-# Jupyter
+# Jupyter notebooks and checkpoints
 .ipynb_checkpoints/
+*.ipynb
 
-# MLflow
+# MLflow and experiment tracking
 mlruns/
+mlartifacts/
+.mlflow/
 
-# Cache
+# Cache directories
 .cache/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.tox/
+.nox/
 
-# Local development
-.env.local
-.env.development
-.env.test
-.env.production
+# Environment files
+.env*
+!.env.example
 
-# Large files
+# Large files and archives
 *.zip
 *.tar.gz
+*.tar.bz2
+*.tar.xz
 *.rar
 *.7z
+*.bz2
+*.gz
+*.xz
 
-# Model files (keep small ones for testing)
+# Model files and checkpoints
 models/
 checkpoints/
 *.pth
 *.pt
 *.ckpt
+*.pkl
+*.joblib
+*.h5
+*.hdf5
+*.onnx
+*.tflite
+*.pb
+*.pbtxt
 
-# Monitoring
+# Monitoring and observability
 monitoring/
 grafana/
 prometheus/
+kibana/
+elasticsearch/
+
+# Development and testing scripts
+scripts/
+tests/
+test_*
+*_test.py
+conftest.py
+pytest.ini
+setup.cfg
+tox.ini
+.pre-commit-config.yaml
+
+# Configuration files (keep only essential)
+configs/
+!configs/default.yaml
+!configs/verify.yaml
+*.yaml
+*.yml
+!pyproject.toml
+
+# Requirements files (keep only production)
+requirements*.txt
+!requirements.txt
+requirements-dev.txt
+requirements-test.txt
+requirements-prod.txt
+
+# Backup and temporary files
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+*.swp
+*.swo
+*~
+
+# Large directories that are not needed
+examples/
+samples/
+demo/
+demos/
+benchmarks/
+performance/

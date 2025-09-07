@@ -88,13 +88,14 @@ class ModelCardGenerator:
 
         header = f"""# Model Card: {model_name}
 
-**Generated on:** {timestamp}  
-**Task Type:** {self.task_type.value.title()}  
-**Model Type:** {model_name}  
+**Generated on:** {timestamp}
+**Task Type:** {self.task_type.value.title()}
+**Model Type:** {model_name}
 
 ## Overview
 
-This model card provides comprehensive information about the trained machine learning model, including its performance, limitations, and usage guidelines.
+This model card provides comprehensive information about the trained machine learning
+model, including its performance, limitations, and usage guidelines.
 
 """
         return header
@@ -237,7 +238,9 @@ This model card provides comprehensive information about the trained machine lea
         if len(categorical_features) > 0:
             data_info += f"- **Categorical features:** {len(categorical_features)}\n"
 
-        data_info += f"- **Missing values:** {X.isnull().sum().sum():,} ({X.isnull().sum().sum() / (X.shape[0] * X.shape[1]) * 100:.2f}%)\n"
+        missing_count = X.isnull().sum().sum()
+        missing_pct = missing_count / (X.shape[0] * X.shape[1]) * 100
+        data_info += f"- **Missing values:** {missing_count:,} ({missing_pct:.2f}%)\n"
 
         data_info += "\n"
         return data_info
@@ -351,7 +354,9 @@ For questions or issues, please refer to the model documentation or contact the 
             if len(value_counts) <= 5:
                 return f"Classes: {dict(value_counts)}"
             else:
-                return f"{len(value_counts)} classes, most common: {value_counts.iloc[0]} ({value_counts.iloc[0]/len(y)*100:.1f}%)"
+                most_common = value_counts.iloc[0]
+                most_common_pct = most_common / len(y) * 100
+                return f"{len(value_counts)} classes, most common: {most_common} ({most_common_pct:.1f}%)"
         else:
             return f"Mean: {y.mean():.4f}, Std: {y.std():.4f}, Range: [{y.min():.4f}, {y.max():.4f}]"
 
@@ -380,11 +385,11 @@ For questions or issues, please refer to the model documentation or contact the 
         """Generate a brief summary model card."""
         summary = f"""# Model Summary
 
-**Model:** {type(model).__name__}  
-**Task:** {self.task_type.value.title()}  
-**Score:** {score:.4f}  
-**Samples:** {X.shape[0]:,}  
-**Features:** {X.shape[1]:,}  
+**Model:** {type(model).__name__}
+**Task:** {self.task_type.value.title()}
+**Score:** {score:.4f}
+**Samples:** {X.shape[0]:,}
+**Features:** {X.shape[1]:,}
 
 ## Quick Stats
 - **Accuracy/R²:** {score:.4f}

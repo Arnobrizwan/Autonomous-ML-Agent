@@ -17,6 +17,7 @@ from src.aml_agent.preprocess import (
 from src.aml_agent.types import EncodingMethod, ImputationMethod
 
 
+@pytest.mark.unit
 class TestPreprocessing:
     """Test preprocessing components."""
 
@@ -82,10 +83,12 @@ class TestPreprocessing:
 
         outlier_info = detector.detect_outliers(data, ["normal", "with_outliers"])
 
-        assert "normal" in outlier_info
-        assert "with_outliers" in outlier_info
-        assert outlier_info["normal"]["n_outliers"] == 0
-        assert outlier_info["with_outliers"]["n_outliers"] > 0
+        # Check the actual structure returned by the detector
+        assert "outliers_by_column" in outlier_info
+        assert "normal" in outlier_info["outliers_by_column"]
+        assert "with_outliers" in outlier_info["outliers_by_column"]
+        assert outlier_info["outliers_by_column"]["normal"]["count"] == 0
+        assert outlier_info["outliers_by_column"]["with_outliers"]["count"] > 0
 
     def test_imputation_transformer(self):
         """Test imputation transformer."""

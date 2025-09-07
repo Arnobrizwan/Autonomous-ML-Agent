@@ -50,16 +50,30 @@ aml = "aml_agent.ui.cli:app"
 where = ["src"]
 
 [tool.pytest.ini_options]
+minversion = "6.0"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+addopts = "-ra -q --strict-markers --durations=10 --maxfail=3"
+markers = [
+    "unit: Fast unit tests (isolated, <1s each)",
+    "integration: Integration tests (with dependencies, 1-10s each)",
+    "slow: Slow tests (performance, large datasets, >10s each)",
+    "smoke: Critical smoke tests (basic functionality)",
+    "regression: Regression tests",
+    "benchmark: Performance benchmark tests",
+    "ml: ML-specific tests (model training, evaluation)"
+]
 filterwarnings = [
     "ignore::sklearn.exceptions.ConvergenceWarning",
     "ignore::DeprecationWarning:sklearn.utils._tags",
-    "ignore:.*CatBoostClassifier.*__sklearn_tags__.*:DeprecationWarning"
+    "ignore:.*CatBoostClassifier.*__sklearn_tags__.*:DeprecationWarning",
+    "ignore::UserWarning:pydantic",
+    "ignore::DeprecationWarning:pandas"
 ]
+cache_dir = ".pytest_cache"
+junit_family = "xunit2"
 
 [tool.black]
 line-length = 88
@@ -68,4 +82,17 @@ target-version = ['py311']
 [tool.isort]
 profile = "black"
 line_length = 88
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "W503"]
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    ".eggs",
+    "*.egg",
+    "build",
+    "dist",
+]
 

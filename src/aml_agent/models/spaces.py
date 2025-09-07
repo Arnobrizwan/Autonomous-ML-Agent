@@ -229,17 +229,13 @@ class SearchSpaceBuilder:
         Returns:
             Optuna study
         """
-        search_space = self.get_search_space(model_type, task_type, custom_space)
-
         study = optuna.create_study(
             direction=direction,
             sampler=optuna.samplers.TPESampler(seed=42),
         )
 
-        # Add search space to study
-        study.enqueue_trial(
-            {param: dist.suggest() for param, dist in search_space.items()}
-        )
+        # Add search space to study - Optuna will handle the distributions
+        # No need to enqueue trial with suggested values
 
         return study
 

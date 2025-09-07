@@ -11,14 +11,6 @@ This package provides an end-to-end machine learning pipeline that automatically
 
 import warnings
 
-# Suppress specific warnings that don't affect functionality
-warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.utils._tags")
-warnings.filterwarnings("ignore", message=".*CatBoostClassifier.*__sklearn_tags__.*")
-warnings.filterwarnings("ignore", message=".*ConvergenceWarning.*max_iter.*")
-
-__version__ = "0.1.0"
-__author__ = "AML Agent Team"
-
 from .config import Config, load_config
 from .types import (
     LeaderboardEntry,
@@ -29,6 +21,14 @@ from .types import (
     TaskType,
     TrialResult,
 )
+
+# Suppress specific warnings that don't affect functionality
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.utils._tags")
+warnings.filterwarnings("ignore", message=".*CatBoostClassifier.*__sklearn_tags__.*")
+warnings.filterwarnings("ignore", message=".*ConvergenceWarning.*max_iter.*")
+
+__version__ = "0.1.0"
+__author__ = "AML Agent Team"
 
 __all__ = [
     "Config",
