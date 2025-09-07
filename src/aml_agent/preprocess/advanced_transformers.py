@@ -141,9 +141,14 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
                 tfidf_features = self.vectorizer.transform(text_data)
             else:
                 continue
+            # Convert sparse matrix to dense array
+            if hasattr(tfidf_features, "toarray"):
+                tfidf_array = tfidf_features.toarray()
+            else:
+                tfidf_array = tfidf_features
             tfidf_df = pd.DataFrame(
-                tfidf_features.toarray(),
-                columns=[f"{col}_tfidf_{i}" for i in range(tfidf_features.shape[1])],
+                tfidf_array,
+                columns=[f"{col}_tfidf_{i}" for i in range(tfidf_array.shape[1])],
                 index=X.index,
             )
             result = pd.concat([result, tfidf_df], axis=1)
@@ -403,8 +408,9 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
 
             imputer = SimpleImputer(strategy="median")
             if hasattr(X_numeric, "columns"):
+                X_numeric_imputed = imputer.fit_transform(X_numeric)
                 X_numeric = pd.DataFrame(
-                    imputer.fit_transform(X_numeric),
+                    X_numeric_imputed,
                     columns=X_numeric.columns,
                     index=X_numeric.index,
                 )
@@ -471,8 +477,9 @@ class PolynomialFeatureGenerator(BaseEstimator, TransformerMixin):
 
             imputer = SimpleImputer(strategy="median")
             if hasattr(X_numeric, "columns"):
+                X_numeric_imputed = imputer.fit_transform(X_numeric)
                 X_numeric = pd.DataFrame(
-                    imputer.fit_transform(X_numeric),
+                    X_numeric_imputed,
                     columns=X_numeric.columns,
                     index=X_numeric.index,
                 )
@@ -693,8 +700,8 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
 
         if y.dtype == "object":
             le = LabelEncoder()
-            return le.fit_transform(y)
-        return y.values
+            return np.asarray(le.fit_transform(y))
+        return np.asarray(y.values)
 
     def _get_data_subset(
         self, X: pd.DataFrame, numeric_columns: List[str]
@@ -1045,10 +1052,13 @@ class TextFeatureExtractor(BaseEstimator, TransformerMixin):
             text_features = self.vectorizer.transform(text_data)
             feature_names = [f"text_feature_{i}" for i in range(text_features.shape[1])]
 
+            # Convert sparse matrix to dense array
+            if hasattr(text_features, "toarray"):
+                text_array = text_features.toarray()
+            else:
+                text_array = text_features
             # Create DataFrame with text features
-            text_df = pd.DataFrame(
-                text_features.toarray(), columns=feature_names, index=X.index
-            )
+            text_df = pd.DataFrame(text_array, columns=feature_names, index=X.index)
 
             # Remove original text columns and add features
             X_transformed = X_transformed.drop(columns=self.text_columns)

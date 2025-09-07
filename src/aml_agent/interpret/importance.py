@@ -114,7 +114,9 @@ class FeatureImportanceAnalyzer:
             )
 
             # Handle union type for perm_importance
-            if hasattr(perm_importance, "importances_mean"):
+            if hasattr(perm_importance, "importances_mean") and hasattr(
+                perm_importance, "importances_std"
+            ):
                 scores = perm_importance.importances_mean
                 std = perm_importance.importances_std
             elif isinstance(perm_importance, dict):

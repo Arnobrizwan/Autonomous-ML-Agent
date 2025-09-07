@@ -109,9 +109,9 @@ class ImputationTransformer(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
+    def fit_transform(self, X, y=None, **fit_params) -> np.ndarray:
         """Fit and transform in one step."""
-        return self.fit(X, y).transform(X)
+        return self.fit(X, y).transform(X).values
 
 
 class CategoricalEncoder(BaseEstimator, TransformerMixin):
@@ -146,7 +146,9 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
                     X[col] = X[col].where(X[col].isin(top_categories), "other")
 
                 self.encoders[col] = OneHotEncoder(
-                    handle_unknown=self.handle_unknown,
+                    handle_unknown=(
+                        "ignore" if self.handle_unknown == "ignore" else "error"
+                    ),
                     sparse_output=False,
                 )
                 self.encoders[col].fit(X[[col]])
@@ -203,9 +205,9 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
+    def fit_transform(self, X, y=None, **fit_params) -> np.ndarray:
         """Fit and transform in one step."""
-        return self.fit(X, y).transform(X)
+        return self.fit(X, y).transform(X).values
 
 
 class DateTimeExpander(BaseEstimator, TransformerMixin):
@@ -254,9 +256,9 @@ class DateTimeExpander(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
+    def fit_transform(self, X, y=None, **fit_params) -> np.ndarray:
         """Fit and transform in one step."""
-        return self.fit(X, y).transform(X)
+        return self.fit(X, y).transform(X).values
 
 
 class FeatureScaler(BaseEstimator, TransformerMixin):
@@ -305,9 +307,9 @@ class FeatureScaler(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
+    def fit_transform(self, X, y=None, **fit_params) -> np.ndarray:
         """Fit and transform in one step."""
-        return self.fit(X, y).transform(X)
+        return self.fit(X, y).transform(X).values
 
 
 class OutlierHandler(BaseEstimator, TransformerMixin):
@@ -359,9 +361,9 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
+    def fit_transform(self, X, y=None, **fit_params) -> np.ndarray:
         """Fit and transform in one step."""
-        return self.fit(X, y).transform(X)
+        return self.fit(X, y).transform(X).values
 
 
 class TextFeatureExtractor(BaseEstimator, TransformerMixin):
@@ -370,7 +372,7 @@ class TextFeatureExtractor(BaseEstimator, TransformerMixin):
     def __init__(self, max_features: int = 100, min_df: int = 2):
         self.max_features = max_features
         self.min_df = min_df
-        self.vectorizer = None
+        self.vectorizer: Optional[Any] = None
         self.text_columns: List[str] = []
         self.is_fitted = False
 
@@ -440,9 +442,9 @@ class TextFeatureExtractor(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
+    def fit_transform(self, X, y=None, **fit_params) -> np.ndarray:
         """Fit and transform in one step."""
-        return self.fit(X, y).transform(X)
+        return self.fit(X, y).transform(X).values
 
 
 class FeatureSelector(BaseEstimator, TransformerMixin):
@@ -511,6 +513,6 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
         else:
             return input_features
 
-    def fit_transform(self, X: pd.DataFrame, y=None, **fit_params) -> pd.DataFrame:
+    def fit_transform(self, X, y=None, **fit_params) -> np.ndarray:
         """Fit and transform in one step."""
-        return self.fit(X, y).transform(X)
+        return self.fit(X, y).transform(X).values

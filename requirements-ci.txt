@@ -17,6 +17,7 @@ httpx>=0.24.0,<1.0.0
 pydantic>=2.0.0,<3.0.0
 pydantic-settings>=2.0.0,<3.0.0
 pyyaml>=6.0,<7.0
+types-PyYAML>=6.0.12.12,<7.0.0
 
 # CLI and UI
 typer[all]>=0.9.0,<1.0.0
@@ -42,3 +43,7 @@ psutil>=5.9.0,<6.0.0
 # Data formats
 openpyxl>=3.1.0,<4.0.0
 pyarrow>=14.0.0,<15.0.0
+
+# Type stubs for mypy
+scikit-learn-stubs>=0.0.1,<1.0.0
+pandas-stubs>=2.0.0,<3.0.0

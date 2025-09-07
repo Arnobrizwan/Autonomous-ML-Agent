@@ -4,6 +4,7 @@ FastAPI service for serving ML models.
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import List
 
 import pandas as pd
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -183,11 +184,26 @@ async def predict_batch(request: BatchPredictionRequest):
 
         # Make predictions
         pred_result = loaded_pipeline.predict(data)
-        predictions = (
-            pred_result.tolist()
-            if hasattr(pred_result, "tolist")
-            else list(pred_result)
-        )
+        # Handle union type for predictions
+        if isinstance(pred_result, tuple):
+            raw_predictions = [
+                item.tolist() if hasattr(item, "tolist") else list(item)
+                for item in pred_result
+            ]
+        else:
+            raw_predictions = (
+                pred_result.tolist()
+                if hasattr(pred_result, "tolist")
+                else list(pred_result)
+            )
+
+        # Ensure predictions is a flat list of floats
+        predictions: List[float] = []
+        for item in raw_predictions:
+            if isinstance(item, list):
+                predictions.extend([float(x) for x in item])
+            else:
+                predictions.append(float(item))
 
         # Get probabilities if available
         probabilities = None
@@ -234,11 +250,26 @@ async def predict_file(file: UploadFile = File(...)):
 
         # Make predictions
         pred_result = loaded_pipeline.predict(data)
-        predictions = (
-            pred_result.tolist()
-            if hasattr(pred_result, "tolist")
-            else list(pred_result)
-        )
+        # Handle union type for predictions
+        if isinstance(pred_result, tuple):
+            raw_predictions = [
+                item.tolist() if hasattr(item, "tolist") else list(item)
+                for item in pred_result
+            ]
+        else:
+            raw_predictions = (
+                pred_result.tolist()
+                if hasattr(pred_result, "tolist")
+                else list(pred_result)
+            )
+
+        # Ensure predictions is a flat list of floats
+        predictions: List[float] = []
+        for item in raw_predictions:
+            if isinstance(item, list):
+                predictions.extend([float(x) for x in item])
+            else:
+                predictions.append(float(item))
 
         # Get probabilities if available
         probabilities = None
