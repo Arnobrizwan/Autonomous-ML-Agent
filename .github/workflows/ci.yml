@@ -22,8 +22,8 @@ env:
   REPO_NAME: ${{ github.repository }}
   REPO_OWNER: ${{ github.repository_owner }}
   IMAGE_NAME: autonomous-ml-agent
-  REGISTRY: ghcr.io
-  # Use lowercase for GitHub Container Registry - auto-convert username
+  REGISTRY: docker.io
+  # Use Docker Hub for public repositories
   PACKAGE_NAME: ${{ github.repository_owner }}/autonomous-ml-agent
 
 jobs:
@@ -326,11 +326,11 @@ jobs:
           echo "Multi-platform build: linux/amd64,linux/arm64"
           echo "Cache strategy: GitHub Actions cache with scope-based separation"
 
-  # Deploy job: Push to registry and deploy
+  # Deploy job: Push to registry and deploy (optional)
   deploy:
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && secrets.DOCKERHUB_USERNAME != ''
     environment: production
 
     steps:
@@ -346,14 +346,13 @@ jobs:
         id: lowercase
         run: |
           echo "lowercase_owner=$(echo '${{ env.REPO_OWNER }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-          echo "lowercase_package=${{ env.REGISTRY }}/$(echo '${{ env.REPO_OWNER }}' | tr '[:upper:]' '[:lower:]')/autonomous-ml-agent" >> $GITHUB_OUTPUT
+          echo "lowercase_package=$(echo '${{ env.REPO_OWNER }}' | tr '[:upper:]' '[:lower:]')/autonomous-ml-agent" >> $GITHUB_OUTPUT
 
-      - name: Login to GitHub Container Registry
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ env.REPO_OWNER }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract metadata
         id: meta
@@ -380,29 +379,47 @@ jobs:
           build-args: |
             BUILDKIT_INLINE_CACHE=1
 
-      - name: Deploy to staging
-        run: |
-          echo "Deploying to staging environment"
-          echo "Image: ${{ steps.meta.outputs.tags }}"
-          # Add staging deployment commands here
-          # Example: kubectl apply -f k8s/staging/
-
-      - name: Run smoke tests on staging
-        run: |
-          echo "Running smoke tests on staging"
-          # Add smoke test commands here
-          # Example: curl -f http://staging.aml-agent.com/healthz
-
-      - name: Deploy to production
-        run: |
-          echo "Deploying to production environment"
-          echo "Image: ${{ steps.meta.outputs.tags }}"
-          # Add production deployment commands here
-          # Example: kubectl apply -f k8s/production/
-
       - name: Build summary
         run: |
           echo "🚀 Build and deployment completed successfully!"
           echo "📦 Image: ${{ steps.meta.outputs.tags }}"
           echo "🏷️  Tags: ${{ steps.meta.outputs.tags }}"
           echo "📊 Registry: ${{ steps.lowercase.outputs.lowercase_package }}"
+
+  # Fallback job: Build without pushing (when no Docker Hub credentials)
+  build-only:
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main' && secrets.DOCKERHUB_USERNAME == ''
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:buildx-stable-1
+
+      - name: Build production image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.simple
+          push: false
+          tags: |
+            autonomous-ml-agent:latest
+            autonomous-ml-agent:${{ github.sha }}
+            autonomous-ml-agent:${{ github.ref_name }}
+          cache-from: type=gha,scope=prod
+          cache-to: type=gha,mode=max,scope=prod
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: Build summary
+        run: |
+          echo "🚀 Build completed successfully!"
+          echo "📦 Image: autonomous-ml-agent:latest"
+          echo "🏷️  Tags: latest, ${{ github.sha }}, ${{ github.ref_name }}"
+          echo "ℹ️  To push to Docker Hub, add DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets"
