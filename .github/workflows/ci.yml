@@ -330,7 +330,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.ref == 'refs/heads/main' && secrets.DOCKERHUB_USERNAME != ''
+    if: github.ref == 'refs/heads/main'
     environment: production
 
     steps:
@@ -353,6 +353,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+        continue-on-error: true
 
       - name: Extract metadata
         id: meta
@@ -365,7 +366,19 @@ jobs:
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Check if Docker Hub credentials are available
+        id: check_creds
+        run: |
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "has_creds=true" >> $GITHUB_OUTPUT
+            echo "Docker Hub credentials found"
+          else
+            echo "has_creds=false" >> $GITHUB_OUTPUT
+            echo "Docker Hub credentials not found, will build only"
+          fi
+
       - name: Build and push production image
+        if: steps.check_creds.outputs.has_creds == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -379,29 +392,8 @@ jobs:
           build-args: |
             BUILDKIT_INLINE_CACHE=1
 
-      - name: Build summary
-        run: |
-          echo "🚀 Build and deployment completed successfully!"
-          echo "📦 Image: ${{ steps.meta.outputs.tags }}"
-          echo "🏷️  Tags: ${{ steps.meta.outputs.tags }}"
-          echo "📊 Registry: ${{ steps.lowercase.outputs.lowercase_package }}"
-
-  # Fallback job: Build without pushing (when no Docker Hub credentials)
-  build-only:
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: github.ref == 'refs/heads/main' && secrets.DOCKERHUB_USERNAME == ''
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            image=moby/buildkit:buildx-stable-1
-
       - name: Build production image (no push)
+        if: steps.check_creds.outputs.has_creds == 'false'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -419,7 +411,14 @@ jobs:
 
       - name: Build summary
         run: |
-          echo "🚀 Build completed successfully!"
-          echo "📦 Image: autonomous-ml-agent:latest"
-          echo "🏷️  Tags: latest, ${{ github.sha }}, ${{ github.ref_name }}"
-          echo "ℹ️  To push to Docker Hub, add DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets"
+          if [ "${{ steps.check_creds.outputs.has_creds }}" == "true" ]; then
+            echo "🚀 Build and deployment completed successfully!"
+            echo "📦 Image: ${{ steps.meta.outputs.tags }}"
+            echo "🏷️  Tags: ${{ steps.meta.outputs.tags }}"
+            echo "📊 Registry: ${{ steps.lowercase.outputs.lowercase_package }}"
+          else
+            echo "🚀 Build completed successfully!"
+            echo "📦 Image: autonomous-ml-agent:latest"
+            echo "🏷️  Tags: latest, ${{ github.sha }}, ${{ github.ref_name }}"
+            echo "ℹ️  To push to Docker Hub, add DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets"
+          fi
