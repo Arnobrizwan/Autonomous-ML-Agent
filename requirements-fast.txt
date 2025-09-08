@@ -1,0 +1,55 @@
+# Ultra-fast requirements with pre-built wheels
+# Core scientific computing - use pre-built wheels
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.4.2  # Keep stable version, avoid 1.7.1 compilation
+joblib==1.4.2
+
+# Web framework - lightweight
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+httpx==0.25.2
+
+# Configuration
+pydantic==2.5.0
+pydantic-settings==2.1.0
+pyyaml==6.0.1
+
+# CLI and UI
+typer[all]==0.17.4
+rich==13.9.4
+
+# ML libraries - essential only with pre-built wheels
+xgboost==2.1.4
+lightgbm==4.6.0
+# Skip catboost for now - it's causing slow builds
+# catboost==1.2.8
+
+# ML utilities - minimal
+optuna==3.4.0
+# Skip shap for now - it's causing slow builds
+# shap==0.43.0
+
+# Visualization - lightweight
+plotly==5.17.0
+
+# Web UI
+streamlit==1.28.1
+streamlit-option-menu==0.3.6
+
+# AI API Integration
+openai==1.106.1
+google-generativeai==0.8.5
+anthropic==0.66.0
+
+# System monitoring
+psutil==5.9.6
+
+# Data formats
+openpyxl==3.1.2
+pyarrow==14.0.1
+
+# Testing - minimal
+pytest==8.2.2
+pytest-asyncio==0.26.0

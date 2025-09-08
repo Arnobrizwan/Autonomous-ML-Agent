@@ -237,7 +237,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.simple
+          file: ./docker/Dockerfile.fast
           push: false
           load: true
           tags: ${{ env.IMAGE_NAME }}:test
@@ -246,6 +246,7 @@ jobs:
           platforms: linux/amd64
           build-args: |
             BUILDKIT_INLINE_CACHE=1
+        timeout-minutes: 30
 
       - name: Test Docker image
         run: |
@@ -283,7 +284,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.simple
+          file: ./docker/Dockerfile.fast
           push: false
           tags: |
             ${{ env.IMAGE_NAME }}:latest
@@ -299,7 +300,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.simple
+          file: ./docker/Dockerfile.fast
           push: false
           load: true  # Only works with single platform
           tags: ${{ env.IMAGE_NAME }}:test
@@ -397,7 +398,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.simple
+          file: ./docker/Dockerfile.fast
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -412,7 +413,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.simple
+          file: ./docker/Dockerfile.fast
           push: false
           tags: |
             autonomous-ml-agent:latest
